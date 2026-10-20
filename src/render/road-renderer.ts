@@ -266,8 +266,13 @@ function quad(
   y2: number,
   x4: number,
 ) {
-  g.fillStyle(color)
-    .beginPath()
+  g.fillStyle(color);
+  if (y1 - y2 <= 2) {
+    const left = (x1 + x4) / 2;
+    g.fillRect(left, y2, (x2 + x3) / 2 - left, y1 - y2);
+    return;
+  }
+  g.beginPath()
     .moveTo(x1, y1)
     .lineTo(x2, y1)
     .lineTo(x3, y2)
