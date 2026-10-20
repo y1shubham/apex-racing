@@ -5,6 +5,7 @@ export interface VehicleState {
   z: number;
   x: number;
   speed: number;
+  xv: number;
 }
 
 export interface DriveInput {
@@ -38,7 +39,7 @@ export function stepVehicle(
   const ratio = Math.min(1, Math.abs(s.speed) / car.maxSpeed);
   const offroad = Math.abs(s.x) > 1;
 
-  let x = s.x + input.steer * steerRate(ratio, car, offroad) * dt;
+  let x = s.x + (input.steer * steerRate(ratio, car, offroad) + s.xv) * dt;
   x -= driftRate(curve, ratio, car) * dt;
   x = Math.max(-P.maxOffset, Math.min(P.maxOffset, x));
 
@@ -62,5 +63,6 @@ export function stepVehicle(
   );
 
   const z = (((s.z + speed * dt) % trackLength) + trackLength) % trackLength;
-  return { z, x, speed };
+  const xv = s.xv * Math.max(0, 1 - P.lateralDecay * dt);
+  return { z, x, speed, xv };
 }

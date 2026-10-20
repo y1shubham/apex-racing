@@ -4,7 +4,6 @@ import { CARS, PAINTS } from "../config/cars";
 import {
   CAMERA_DEPTH,
   CAR_WORLD_WIDTH,
-  COLLISION,
   FIXED_STEP,
   PLAYER_Z,
   ROAD_WIDTH,
@@ -33,9 +32,6 @@ const frameFor = (r: Racer, maxSpeed: number): CarFrame =>
     : r.steer < 0
       ? "left"
       : "right";
-
-const spinAngle = (r: Racer) =>
-  r.spin > 0 ? (1 - r.spin / COLLISION.spinSeconds) * 360 : 0;
 
 export class RaceScene extends Phaser.Scene {
   private setup!: RaceSceneData;
@@ -138,8 +134,9 @@ export class RaceScene extends Phaser.Scene {
           Math.random,
         );
       });
-      if (events.some((e) => e.a.isPlayer || e.b.isPlayer)) {
-        const hard = events.some((e) => e.spin);
+      const mine = events.filter((e) => e.racers.some((r) => r.isPlayer));
+      if (mine.length) {
+        const hard = mine.some((e) => e.hard);
         this.jolt = { time: hard ? 0.3 : 0.12, amp: hard ? 8 : 3 };
       }
       this.acc -= FIXED_STEP;
@@ -155,7 +152,6 @@ export class RaceScene extends Phaser.Scene {
         x: r.state.x,
         texture: carTextureKey(race.car.id, r.paintId, frameFor(r, maxSpeed)),
         sizeTexture: carTextureKey(race.car.id, r.paintId),
-        angle: spinAngle(r),
       }));
     const ratio = Math.abs(p.state.speed) / maxSpeed;
     const paused = race.status === "paused";
@@ -186,7 +182,6 @@ export class RaceScene extends Phaser.Scene {
     this.player
       .setTexture(carTextureKey(race.car.id, p.paintId, frameFor(p, maxSpeed)))
       .setScale(carWidth / straight.width)
-      .setAngle(spinAngle(p))
       .setPosition(
         W / 2 + Phaser.Math.FloatBetween(-shake, shake),
         H - 12 + bounce + Phaser.Math.FloatBetween(-shake, shake) / 2,

@@ -11,6 +11,20 @@ export type SceneryKind =
   | "alpine-rock"
   | "alpine-boulder";
 
+export const SCENERY_HIT_WIDTH: Record<SceneryKind, number> = {
+  palm: 0.12,
+  "coast-lamp": 0.05,
+  "coast-rock": 0.3,
+  "city-lamp": 0.08,
+  barrier: 0.3,
+  "power-pole": 0.06,
+  "fir-a": 0.1,
+  "fir-b": 0.1,
+  "fir-c": 0.1,
+  "alpine-rock": 0.25,
+  "alpine-boulder": 0.3,
+};
+
 export interface TrackSection {
   length: number;
   curve?: number;

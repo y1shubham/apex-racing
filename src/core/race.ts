@@ -1,5 +1,6 @@
 import type { CarDefinition } from "../config/cars";
-import { COLLISION, RACE } from "../config/game";
+import { COLLISION, RACE, SEGMENT_LENGTH } from "../config/game";
+import { SCENERY_HIT_WIDTH } from "../config/tracks";
 import { stepVehicle, type DriveInput, type VehicleState } from "./physics";
 import { segmentAt, type Track } from "./track";
 
@@ -16,7 +17,7 @@ export interface Racer {
   lapStart: number;
   lapTimes: number[];
   finishTime: number | null;
-  spin: number;
+  wobble: number;
   steer: number;
 }
 
@@ -28,12 +29,9 @@ export interface RacerEntry {
 }
 
 export interface CollisionEvent {
-  a: Racer;
-  b: Racer;
-  spin: boolean;
+  racers: Racer[];
+  hard: boolean;
 }
-
-const IDLE: DriveInput = { throttle: false, brake: false, steer: 0 };
 const mod = (v: number, m: number) => ((v % m) + m) % m;
 
 export class Race {
@@ -57,12 +55,13 @@ export class Race {
           z: mod(distance, track.length),
           x: i % 2 ? RACE.gridLaneX : -RACE.gridLaneX,
           speed: 0,
+          xv: 0,
         },
         distance,
         lapStart: 0,
         lapTimes: [],
         finishTime: null,
-        spin: 0,
+        wobble: 0,
         steer: 0,
       };
     });
@@ -117,14 +116,19 @@ export class Race {
     const L = this.track.length;
 
     for (const r of this.racers) {
-      const input = r.spin > 0 ? IDLE : inputFor(r);
-      r.steer = input.steer;
+      const input = { ...inputFor(r) };
+      if (r.wobble > 0) {
+        const t = COLLISION.wobbleSeconds - r.wobble;
+        const sway = Math.sin(t * COLLISION.wobbleFrequency);
+        const fade = r.wobble / COLLISION.wobbleSeconds;
+        input.steer *= COLLISION.wobbleControl;
+        r.state.xv = sway * COLLISION.wobbleSway * fade;
+        r.wobble -= dt;
+        r.state.speed *= 1 - COLLISION.wobbleDrag * dt;
+        r.steer = sway;
+      } else r.steer = input.steer;
       const curve = segmentAt(this.track, r.state.z).curve;
       r.state = stepVehicle(r.state, input, this.car, curve, L, dt);
-      if (r.spin > 0) {
-        r.spin -= dt;
-        r.state.speed *= 1 - COLLISION.spinDrag * dt;
-      }
       const lapsBefore = Math.floor(r.distance / L);
       r.distance += r.state.speed * dt;
       const lapsAfter = Math.floor(r.distance / L);
@@ -135,7 +139,7 @@ export class Race {
       }
     }
 
-    const events = this.resolveCollisions();
+    const events = [...this.resolveCollisions(), ...this.resolveProps()];
     if (this.player.finishTime !== null) this.status = "finished";
     return events;
   }
@@ -143,34 +147,68 @@ export class Race {
   private resolveCollisions(): CollisionEvent[] {
     const events: CollisionEvent[] = [];
     const L = this.track.length;
+    const { carLength, carWidth } = COLLISION;
     for (let i = 0; i < this.racers.length; i++) {
       for (let j = i + 1; j < this.racers.length; j++) {
         const a = this.racers[i]!;
         const b = this.racers[j]!;
         const dz = mod(a.state.z - b.state.z + L / 2, L) - L / 2;
         const dx = a.state.x - b.state.x;
-        if (
-          Math.abs(dz) >= COLLISION.carLength ||
-          Math.abs(dx) >= COLLISION.carWidth
-        )
-          continue;
+        const overlapZ = carLength - Math.abs(dz);
+        const overlapX = carWidth - Math.abs(dx);
+        if (overlapZ <= 0 || overlapX <= 0) continue;
 
         const [front, rear] = dz >= 0 ? [a, b] : [b, a];
-        const rel = rear.state.speed - front.state.speed;
-        const spin = rel > COLLISION.spinThreshold * this.car.maxSpeed;
-        if (rel > 0) {
-          front.state.speed += rel * COLLISION.frontPush;
-          rear.state.speed = front.state.speed * COLLISION.rearSpeedKeep;
+        const closing = rear.state.speed - front.state.speed;
+        let hard = false;
+        if (Math.abs(dx) < carWidth * COLLISION.rearEndAlignment) {
+          if (closing > 0) {
+            const mean = (rear.state.speed + front.state.speed) / 2;
+            const bounce = (COLLISION.restitution * closing) / 2;
+            rear.state.speed = mean - bounce;
+            front.state.speed = mean + bounce;
+            hard = closing > COLLISION.hardHitThreshold * this.car.maxSpeed;
+            if (hard) rear.wobble = COLLISION.wobbleSeconds;
+          }
+          rear.state.z = mod(rear.state.z - overlapZ, L);
+          rear.distance -= overlapZ;
+        } else {
+          const side = dx >= 0 ? 1 : -1;
+          a.state.x += (side * overlapX) / 2;
+          b.state.x -= (side * overlapX) / 2;
+          a.state.xv = side * COLLISION.sideKnock;
+          b.state.xv = -side * COLLISION.sideKnock;
+          a.state.speed *= 1 - COLLISION.sideScrub;
+          b.state.speed *= 1 - COLLISION.sideScrub;
         }
-        const back = COLLISION.carLength - Math.abs(dz);
-        rear.state.z = mod(rear.state.z - back, L);
-        rear.distance -= back;
-        const push = (COLLISION.carWidth - Math.abs(dx)) / 2;
-        const side = dx >= 0 ? 1 : -1;
-        a.state.x += side * push;
-        b.state.x -= side * push;
-        if (spin) rear.spin = COLLISION.spinSeconds;
-        events.push({ a, b, spin });
+        events.push({ racers: [a, b], hard });
+      }
+    }
+    return events;
+  }
+
+  private resolveProps(): CollisionEvent[] {
+    const events: CollisionEvent[] = [];
+    const L = this.track.length;
+    for (const r of this.racers) {
+      if (r.state.speed <= 0 || Math.abs(r.state.x) < 1) continue;
+      for (let d = 0; d < COLLISION.carLength; d += SEGMENT_LENGTH) {
+        const seg = segmentAt(this.track, r.state.z + d);
+        const hit = seg.scenery.find(
+          (s) =>
+            Math.abs(r.state.x - s.offset) <
+            (SCENERY_HIT_WIDTH[s.kind] + COLLISION.carWidth) / 2,
+        );
+        if (!hit) continue;
+        const back =
+          mod(r.state.z + COLLISION.carLength - seg.index * SEGMENT_LENGTH, L) +
+          1;
+        r.state.z = mod(r.state.z - back, L);
+        r.distance -= back;
+        r.state.speed *= COLLISION.propSpeedKeep;
+        r.state.xv = -Math.sign(hit.offset) * COLLISION.propBounce;
+        events.push({ racers: [r], hard: true });
+        break;
       }
     }
     return events;

@@ -25,6 +25,7 @@ export const PHYSICS = {
   offroadDecel: 9000,
   offroadSteer: 0.6,
   maxOffset: 2.5,
+  lateralDecay: 4,
 };
 
 export const RACE = {
@@ -37,11 +38,18 @@ export const RACE = {
 export const COLLISION = {
   carLength: 250,
   carWidth: 0.22,
-  rearSpeedKeep: 0.92,
-  frontPush: 0.15,
-  spinThreshold: 0.3,
-  spinSeconds: 1,
-  spinDrag: 1.5,
+  restitution: 0.3,
+  rearEndAlignment: 0.7,
+  sideKnock: 0.9,
+  sideScrub: 0.03,
+  hardHitThreshold: 0.3,
+  wobbleSeconds: 1.1,
+  wobbleFrequency: 11,
+  wobbleSway: 0.7,
+  wobbleControl: 0.3,
+  wobbleDrag: 0.8,
+  propSpeedKeep: 0.15,
+  propBounce: 1.4,
 };
 
 export const STEERING_INPUT = {

@@ -40,7 +40,6 @@ export interface CarSprite {
   x: number;
   texture: string;
   sizeTexture: string;
-  angle: number;
 }
 
 const lerp = (a: number, b: number, p: number) => a + (b - a) * p;
@@ -262,7 +261,6 @@ export class RoadRenderer {
     originX: number,
     clip: number,
     depth: number,
-    angle: number,
   ) {
     const frame = this.scene.textures.getFrame(key);
     const visibleH = destH - Math.max(0, y - clip);
@@ -278,7 +276,6 @@ export class RoadRenderer {
       .setPosition(x, y)
       .setDisplaySize(destW, destH)
       .setCrop(0, 0, frame.width, (frame.height * visibleH) / destH)
-      .setAngle(angle)
       .setDepth(depth + this.used)
       .setVisible(true);
   }
@@ -300,10 +297,9 @@ export class RoadRenderer {
           p1.y,
           (destH * frame.width) / frame.height,
           destH,
-          s.offset < 0 ? 1 : 0,
+          0.5,
           clip,
           depth,
-          0,
         );
       }
       for (const car of cars) {
@@ -323,7 +319,6 @@ export class RoadRenderer {
           0.5,
           clip,
           depth,
-          car.angle,
         );
       }
     }

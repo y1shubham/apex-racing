@@ -71,7 +71,7 @@ export function buildTrack(definition: TrackDefinition): Track {
     for (const side of [-1, 1]) {
       segments[i]!.scenery.push({
         kind: kinds[Math.floor(rand() * kinds.length)]!,
-        offset: side * (1.3 + rand() * 2),
+        offset: side * (1.6 + rand() * 2),
       });
     }
   }

@@ -76,24 +76,46 @@ describe("race", () => {
     expect(race.status).toBe("racing");
   });
 
-  it("a fast rear-end hit slows the rear car and spins it", () => {
+  const twoCars = () => {
     const race = new Race(buildTrack(TRACKS[0]!), car, entries(2));
     race.status = "racing";
-    const [a, b] = race.racers as [
-      (typeof race.racers)[0],
-      (typeof race.racers)[0],
-    ];
-    a.state = { z: 5000, x: 0, speed: 2000 };
-    b.state = { z: 4850, x: 0.05, speed: 9000 };
-    const events = race.step(FIXED_STEP, () => ({
-      throttle: false,
-      brake: false,
-      steer: 0,
-    }));
+    return { race, a: race.racers[0]!, b: race.racers[1]! };
+  };
+  const coast = () => ({ throttle: false, brake: false, steer: 0 });
+
+  it("a fast rear-end hit trades momentum and makes the rear car fishtail", () => {
+    const { race, a, b } = twoCars();
+    a.state = { z: 5000, x: 0, speed: 2000, xv: 0 };
+    b.state = { z: 4850, x: 0.05, speed: 9000, xv: 0 };
+    const events = race.step(FIXED_STEP, coast);
     expect(events).toHaveLength(1);
-    expect(events[0]!.spin).toBe(true);
-    expect(b.spin).toBeGreaterThan(0);
+    expect(events[0]!.hard).toBe(true);
+    expect(b.wobble).toBeGreaterThan(0);
+    expect(a.state.speed).toBeGreaterThan(2000);
     expect(b.state.speed).toBeLessThan(a.state.speed);
+  });
+
+  it("a side swipe knocks both cars apart without a fishtail", () => {
+    const { race, a, b } = twoCars();
+    a.state = { z: 5000, x: 0.1, speed: 8000, xv: 0 };
+    b.state = { z: 5000, x: -0.1, speed: 8000, xv: 0 };
+    race.step(FIXED_STEP, coast);
+    expect(a.state.xv).toBeGreaterThan(0);
+    expect(b.state.xv).toBeLessThan(0);
+    expect(a.wobble + b.wobble).toBe(0);
+  });
+
+  it("hitting a roadside object nearly stops the car and bounces it to the road", () => {
+    const { race, a } = twoCars();
+    const seg = race.track.segments.find((s) =>
+      s.scenery.some((p) => Math.abs(p.offset) < 2.3),
+    )!;
+    const prop = seg.scenery.find((p) => Math.abs(p.offset) < 2.3)!;
+    a.state = { z: seg.index * 200 - 150, x: prop.offset, speed: 9000, xv: 0 };
+    const events = race.step(FIXED_STEP, coast);
+    expect(events.some((e) => e.racers.includes(a) && e.hard)).toBe(true);
+    expect(a.state.speed).toBeLessThan(2000);
+    expect(Math.sign(a.state.xv)).toBe(-Math.sign(prop.offset));
   });
 });
 

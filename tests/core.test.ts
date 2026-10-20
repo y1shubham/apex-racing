@@ -11,7 +11,7 @@ const idle: DriveInput = { throttle: false, brake: false, steer: 0 };
 const run = (
   input: DriveInput,
   seconds: number,
-  start = { z: 0, x: 0, speed: 0 },
+  start = { z: 0, x: 0, speed: 0, xv: 0 },
   curve = 0,
 ) => {
   let s = start;
@@ -50,7 +50,7 @@ describe("physics", () => {
   });
 
   it("coasts to a stop and brakes into a capped reverse", () => {
-    expect(run(idle, 10, { z: 0, x: 0, speed: 5000 }).speed).toBe(0);
+    expect(run(idle, 10, { z: 0, x: 0, speed: 5000, xv: 0 }).speed).toBe(0);
     expect(run({ ...idle, brake: true }, 10).speed).toBeCloseTo(
       -car.maxSpeed * 0.2,
     );
@@ -59,30 +59,32 @@ describe("physics", () => {
   it("cannot steer at standstill and steers at speed", () => {
     expect(run({ ...idle, steer: 1 }, 1).x).toBe(0);
     expect(
-      run({ ...idle, steer: 1 }, 0.2, { z: 0, x: 0, speed: 8000 }).x,
+      run({ ...idle, steer: 1 }, 0.2, { z: 0, x: 0, speed: 8000, xv: 0 }).x,
     ).toBeGreaterThan(0);
   });
 
   it("curves push the car outward and off-road slows it", () => {
     expect(
-      run(idle, 0.5, { z: 0, x: 0, speed: car.maxSpeed }, 4).x,
+      run(idle, 0.5, { z: 0, x: 0, speed: car.maxSpeed, xv: 0 }, 4).x,
     ).toBeLessThan(0);
     const on = run({ ...idle, throttle: true }, 1, {
       z: 0,
       x: 0,
       speed: car.maxSpeed,
+      xv: 0,
     });
     const off = run({ ...idle, throttle: true }, 1, {
       z: 0,
       x: 2,
       speed: car.maxSpeed,
+      xv: 0,
     });
     expect(off.speed).toBeLessThan(on.speed * 0.8);
   });
 
   it("wraps position around the track", () => {
     const s = stepVehicle(
-      { z: L - 10, x: 0, speed: 1200 },
+      { z: L - 10, x: 0, speed: 1200, xv: 0 },
       idle,
       car,
       0,
