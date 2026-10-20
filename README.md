@@ -1,5 +1,7 @@
 # APEX RUSH
 
+**Play now: [apex-racing.y1shubham.in](https://apex-racing.y1shubham.in/)**
+
 A pseudo-3D arcade racing game for the browser, built with Phaser 4 and TypeScript. Race AI opponents across three tracks, chain drifts to charge nitro, earn credits and championship points, and unlock faster cars. Mobile-first with full touch controls, and fully playable on desktop with a keyboard.
 
 <p align="center">
@@ -101,7 +103,7 @@ Gameplay rules live in `src/core` with no Phaser dependency, so physics, AI, rac
 
 ## Deployment
 
-The build is static. Any static host works, for example Vercel:
+Live at [apex-racing.y1shubham.in](https://apex-racing.y1shubham.in/), deployed on Vercel. The build is static, so any static host works:
 
 - Framework preset: Vite
 - Build command: `npm run build`
