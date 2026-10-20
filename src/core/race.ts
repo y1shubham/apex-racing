@@ -1,5 +1,5 @@
 import type { CarDefinition } from "../config/cars";
-import { COLLISION, RACE, SEGMENT_LENGTH } from "../config/game";
+import { COLLISION, DRIFT, NITRO, RACE, SEGMENT_LENGTH } from "../config/game";
 import { SCENERY_HIT_WIDTH } from "../config/tracks";
 import { stepVehicle, type DriveInput, type VehicleState } from "./physics";
 import { segmentAt, type Track } from "./track";
@@ -19,6 +19,14 @@ export interface Racer {
   finishTime: number | null;
   wobble: number;
   steer: number;
+  nitro: number;
+  boosting: boolean;
+  driftTime: number;
+  driftControl: number;
+  driftPending: number;
+  driftNitroPending: number;
+  driftScore: number;
+  lastDrift: { points: number; at: number } | null;
 }
 
 export interface RacerEntry {
@@ -56,6 +64,7 @@ export class Race {
           x: i % 2 ? RACE.gridLaneX : -RACE.gridLaneX,
           speed: 0,
           xv: 0,
+          drift: 0,
         },
         distance,
         lapStart: 0,
@@ -63,6 +72,14 @@ export class Race {
         finishTime: null,
         wobble: 0,
         steer: 0,
+        nitro: 0,
+        boosting: false,
+        driftTime: 0,
+        driftControl: 0,
+        driftPending: 0,
+        driftNitroPending: 0,
+        driftScore: 0,
+        lastDrift: null,
       };
     });
   }
@@ -127,8 +144,12 @@ export class Race {
         r.state.speed *= 1 - COLLISION.wobbleDrag * dt;
         r.steer = sway;
       } else r.steer = input.steer;
+      r.boosting = input.nitro && r.nitro > 0 && r.state.speed > 0;
+      input.nitro = r.boosting;
+      if (r.boosting) r.nitro = Math.max(0, r.nitro - NITRO.burnRate * dt);
       const curve = segmentAt(this.track, r.state.z).curve;
       r.state = stepVehicle(r.state, input, this.car, curve, L, dt);
+      this.updateDrift(r, curve, dt);
       const lapsBefore = Math.floor(r.distance / L);
       r.distance += r.state.speed * dt;
       const lapsAfter = Math.floor(r.distance / L);
@@ -142,6 +163,51 @@ export class Race {
     const events = [...this.resolveCollisions(), ...this.resolveProps()];
     if (this.player.finishTime !== null) this.status = "finished";
     return events;
+  }
+
+  private updateDrift(r: Racer, curve: number, dt: number) {
+    if (r.state.drift && Math.abs(r.state.x) > 1) {
+      this.failDrift(r);
+      return;
+    }
+    if (r.state.drift) {
+      r.driftTime += dt;
+      const withCurve =
+        Math.abs(curve) > DRIFT.curveThreshold &&
+        Math.sign(curve) === r.state.drift;
+      const control = withCurve ? 1 : DRIFT.offLineControl;
+      r.driftControl = control;
+      const bonus = Math.min(
+        DRIFT.maxDurationBonus,
+        0.5 + r.driftTime / DRIFT.durationRamp,
+      );
+      const rate =
+        Math.min(1, r.state.speed / this.car.maxSpeed) * control * bonus * dt;
+      r.driftPending += DRIFT.scoreRate * rate;
+      r.driftNitroPending += DRIFT.nitroRate * rate;
+    } else if (r.driftTime > 0) {
+      if (r.driftTime >= DRIFT.minDuration) {
+        const points = Math.round(r.driftPending);
+        r.driftScore += points;
+        r.nitro = Math.min(
+          this.car.nitroCapacity,
+          r.nitro + r.driftNitroPending,
+        );
+        r.lastDrift = { points, at: this.time };
+      }
+      this.clearDrift(r);
+    }
+  }
+
+  private clearDrift(r: Racer) {
+    r.driftTime = 0;
+    r.driftPending = 0;
+    r.driftNitroPending = 0;
+  }
+
+  private failDrift(r: Racer) {
+    r.state.drift = 0;
+    this.clearDrift(r);
   }
 
   private resolveCollisions(): CollisionEvent[] {
@@ -181,6 +247,8 @@ export class Race {
           a.state.speed *= 1 - COLLISION.sideScrub;
           b.state.speed *= 1 - COLLISION.sideScrub;
         }
+        if (a.state.drift) this.failDrift(a);
+        if (b.state.drift) this.failDrift(b);
         events.push({ racers: [a, b], hard });
       }
     }
@@ -207,6 +275,7 @@ export class Race {
         r.distance -= back;
         r.state.speed *= COLLISION.propSpeedKeep;
         r.state.xv = -Math.sign(hit.offset) * COLLISION.propBounce;
+        this.failDrift(r);
         events.push({ racers: [r], hard: true });
         break;
       }

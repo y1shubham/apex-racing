@@ -52,6 +52,30 @@ export const COLLISION = {
   propBounce: 1.4,
 };
 
+export const DRIFT = {
+  minSpeedRatio: 0.4,
+  entrySteer: 0.3,
+  baseTurn: 0.55,
+  steerAuthority: 0.6,
+  centrifugalScale: 0.45,
+  speedLoss: 900,
+  handbrakeBrake: 0.6,
+  minDuration: 0.6,
+  scoreRate: 400,
+  nitroRate: 18,
+  curveThreshold: 0.5,
+  offLineControl: 0.25,
+  durationRamp: 2,
+  maxDurationBonus: 1.5,
+};
+
+export const NITRO = {
+  speedMultiplier: 1.2,
+  accelMultiplier: 1.8,
+  burnRate: 30,
+  overspeedDecay: 1500,
+};
+
 export const STEERING_INPUT = {
   rise: 5,
   return: 8,

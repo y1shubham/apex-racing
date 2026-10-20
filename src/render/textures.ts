@@ -31,7 +31,8 @@ export const SCENERY_WORLD_HEIGHT: Record<SceneryKind, number> = {
   "alpine-boulder": 110,
 };
 
-export type CarFrame = "left" | "straight" | "right";
+export type CarFrame =
+  "left" | "straight" | "right" | "drift-left" | "drift-right";
 export const carTextureKey = (
   carId: string,
   paintId: string,

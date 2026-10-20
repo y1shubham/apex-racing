@@ -7,12 +7,16 @@ const COLORS = {
   dim: "#b7bcc8",
   accent: "#ff7a1a",
   boost: "#19e3ff",
+  good: "#9dff2b",
+  meterFill: 0x19e3ff,
+  meterTrack: 0x000000,
   panel: 0x0d0e12,
   button: 0x1d1f24,
   buttonEdge: 0xff7a1a,
 };
 const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
 const DEPTH = 3000;
+const METER = { width: 140, height: 12, bankShowSeconds: 1.2 };
 
 export function formatTime(seconds: number | null) {
   if (seconds === null) return "--:--.---";
@@ -47,6 +51,10 @@ export class Hud {
   private gear: Phaser.GameObjects.Text;
   private countdown: Phaser.GameObjects.Text;
   private pauseButton: Phaser.GameObjects.Text;
+  private nitroLabel: Phaser.GameObjects.Text;
+  private nitroTrack: Phaser.GameObjects.Rectangle;
+  private nitroFill: Phaser.GameObjects.Rectangle;
+  private drift: Phaser.GameObjects.Text;
   private overlay: Phaser.GameObjects.Container | null = null;
 
   constructor(
@@ -59,6 +67,19 @@ export class Hud {
     this.speed = text(scene, 30).setOrigin(1, 1);
     this.gear = text(scene, 18, COLORS.accent).setOrigin(1, 1);
     this.countdown = text(scene, 96, COLORS.accent).setOrigin(0.5);
+    this.nitroLabel = text(scene, 14, COLORS.boost)
+      .setText("NITRO")
+      .setOrigin(0, 1);
+    this.nitroTrack = scene.add
+      .rectangle(0, 0, METER.width, METER.height, COLORS.meterTrack, 0.55)
+      .setOrigin(0, 1)
+      .setStrokeStyle(1, COLORS.meterFill, 0.8)
+      .setDepth(DEPTH);
+    this.nitroFill = scene.add
+      .rectangle(0, 0, METER.width, METER.height, COLORS.meterFill)
+      .setOrigin(0, 1)
+      .setDepth(DEPTH);
+    this.drift = text(scene, 26).setOrigin(0.5);
     this.pauseButton = text(scene, 22)
       .setText("II")
       .setOrigin(1, 0)
@@ -84,6 +105,29 @@ export class Hud {
       .setPosition(W - 16, H - 16)
       .setText(`GEAR ${gear(p.state.speed, race.car.maxSpeed)}`);
 
+    const fill = p.nitro / race.car.nitroCapacity;
+    this.nitroTrack.setPosition(16, H - 16);
+    this.nitroFill
+      .setPosition(16, H - 16)
+      .setSize(METER.width * fill, METER.height)
+      .setAlpha(p.boosting ? 0.6 + 0.4 * Math.sin(race.time * 30) : 1);
+    this.nitroLabel.setPosition(16, H - 32);
+
+    const banked =
+      p.lastDrift && race.time - p.lastDrift.at < METER.bankShowSeconds;
+    this.drift.setPosition(W / 2, H * 0.45);
+    if (p.state.drift) {
+      this.drift
+        .setVisible(true)
+        .setColor(p.driftControl === 1 ? COLORS.good : COLORS.text)
+        .setText(`DRIFT ${Math.round(p.driftPending)}`);
+    } else if (banked) {
+      this.drift
+        .setVisible(true)
+        .setColor(COLORS.accent)
+        .setText(`+${p.lastDrift!.points}`);
+    } else this.drift.setVisible(false);
+
     const c = race.countdown;
     const showGo = race.status === "racing" && race.time < 0.8;
     this.countdown
@@ -108,6 +152,7 @@ export class Hud {
     const lines = [
       `Time  ${formatTime(p.finishTime)}`,
       `Best lap  ${formatTime(race.bestLap(p))}`,
+      `Drift score  ${p.driftScore}`,
       "",
       ...race
         .standings()

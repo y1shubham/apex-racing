@@ -14,6 +14,7 @@ import { TRACKS } from "../config/tracks";
 import { driveAI, newAIMemory, type AIMemory } from "../core/ai";
 import { Race, type Racer } from "../core/race";
 import { buildTrack } from "../core/track";
+import { CarEffects } from "../render/effects";
 import { RoadRenderer, type CarSprite } from "../render/road-renderer";
 import { carTextureKey, type CarFrame } from "../render/textures";
 import { Hud } from "./hud";
@@ -26,12 +27,16 @@ export interface RaceSceneData {
 }
 
 const frameFor = (r: Racer, maxSpeed: number): CarFrame =>
-  Math.abs(r.state.speed) / maxSpeed < 0.05 ||
-  Math.abs(r.steer) < STEERING_INPUT.leanFrameThreshold
-    ? "straight"
-    : r.steer < 0
-      ? "left"
-      : "right";
+  r.state.drift
+    ? r.state.drift < 0
+      ? "drift-left"
+      : "drift-right"
+    : Math.abs(r.state.speed) / maxSpeed < 0.05 ||
+        Math.abs(r.steer) < STEERING_INPUT.leanFrameThreshold
+      ? "straight"
+      : r.steer < 0
+        ? "left"
+        : "right";
 
 export class RaceScene extends Phaser.Scene {
   private setup!: RaceSceneData;
@@ -40,6 +45,7 @@ export class RaceScene extends Phaser.Scene {
   private controls!: InputManager;
   private hud!: Hud;
   private player!: Phaser.GameObjects.Image;
+  private effects!: CarEffects;
   private memories = new Map<string, AIMemory>();
   private difficulty: Difficulty = "normal";
   private acc = 0;
@@ -84,6 +90,7 @@ export class RaceScene extends Phaser.Scene {
       .image(0, 0, carTextureKey(car.id, paintId))
       .setOrigin(0.5, 1)
       .setDepth(1000);
+    this.effects = new CarEffects(this, 1000);
     this.hud = new Hud(this, () => this.pause());
 
     this.game.events.on(Phaser.Core.Events.BLUR, this.pause, this);
@@ -187,6 +194,11 @@ export class RaceScene extends Phaser.Scene {
         H - 12 + bounce + Phaser.Math.FloatBetween(-shake, shake) / 2,
       );
 
+    this.effects.update(
+      this.player,
+      !paused && p.state.drift !== 0,
+      !paused && p.boosting,
+    );
     this.hud.update(race);
     if (race.status === "finished" && !this.resultsShown) {
       this.resultsShown = true;

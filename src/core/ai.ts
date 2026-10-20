@@ -132,5 +132,7 @@ export function driveAI(
     throttle: me.speed < mem.targetSpeed * 0.98,
     brake: me.speed > mem.targetSpeed * 1.04,
     steer,
+    handbrake: false,
+    nitro: false,
   };
 }

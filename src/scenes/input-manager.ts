@@ -9,6 +9,8 @@ const BINDINGS = {
   left: [K.A, K.LEFT],
   right: [K.D, K.RIGHT],
   pause: [K.ESC, K.P],
+  handbrake: [K.SPACE],
+  nitro: [K.SHIFT],
 };
 
 export class InputManager {
@@ -24,6 +26,8 @@ export class InputManager {
       left: add(BINDINGS.left),
       right: add(BINDINGS.right),
       pause: add(BINDINGS.pause),
+      handbrake: add(BINDINGS.handbrake),
+      nitro: add(BINDINGS.nitro),
     };
   }
 
@@ -41,6 +45,12 @@ export class InputManager {
         : STEERING_INPUT.rise;
     const step = rate * dt;
     this.steer += Math.max(-step, Math.min(step, target - this.steer));
-    return { throttle: down("up"), brake: down("down"), steer: this.steer };
+    return {
+      throttle: down("up"),
+      brake: down("down"),
+      steer: this.steer,
+      handbrake: down("handbrake"),
+      nitro: down("nitro"),
+    };
   }
 }

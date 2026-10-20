@@ -4,6 +4,7 @@ import { CARS } from "../src/config/cars";
 import { FIXED_STEP } from "../src/config/game";
 import { TRACKS } from "../src/config/tracks";
 import { cornerSpeedRatio, driveAI, newAIMemory } from "../src/core/ai";
+import { IDLE_INPUT } from "../src/core/physics";
 import { Race, type RacerEntry } from "../src/core/race";
 import { buildTrack } from "../src/core/track";
 
@@ -50,10 +51,10 @@ function simulate(trackIndex: number, difficulty: Difficulty, seed = 1) {
 describe("race", () => {
   it("counts down, then races", () => {
     const race = new Race(buildTrack(TRACKS[0]!), car, entries(2));
-    race.step(1, () => ({ throttle: true, brake: false, steer: 0 }));
+    race.step(1, () => ({ ...IDLE_INPUT, throttle: true, brake: false }));
     expect(race.status).toBe("countdown");
     expect(race.player.state.speed).toBe(0);
-    race.step(2.5, () => ({ throttle: true, brake: false, steer: 0 }));
+    race.step(2.5, () => ({ ...IDLE_INPUT, throttle: true, brake: false }));
     expect(race.status).toBe("racing");
   });
 
@@ -70,7 +71,7 @@ describe("race", () => {
     const race = new Race(buildTrack(TRACKS[0]!), car, entries(2));
     race.status = "racing";
     race.pause();
-    race.step(1, () => ({ throttle: true, brake: false, steer: 0 }));
+    race.step(1, () => ({ ...IDLE_INPUT, throttle: true, brake: false }));
     expect(race.time).toBe(0);
     race.resume();
     expect(race.status).toBe("racing");
@@ -81,12 +82,12 @@ describe("race", () => {
     race.status = "racing";
     return { race, a: race.racers[0]!, b: race.racers[1]! };
   };
-  const coast = () => ({ throttle: false, brake: false, steer: 0 });
+  const coast = () => ({ ...IDLE_INPUT, throttle: false, brake: false });
 
   it("a fast rear-end hit trades momentum and makes the rear car fishtail", () => {
     const { race, a, b } = twoCars();
-    a.state = { z: 5000, x: 0, speed: 2000, xv: 0 };
-    b.state = { z: 4850, x: 0.05, speed: 9000, xv: 0 };
+    a.state = { z: 5000, x: 0, speed: 2000, xv: 0, drift: 0 };
+    b.state = { z: 4850, x: 0.05, speed: 9000, xv: 0, drift: 0 };
     const events = race.step(FIXED_STEP, coast);
     expect(events).toHaveLength(1);
     expect(events[0]!.hard).toBe(true);
@@ -97,8 +98,8 @@ describe("race", () => {
 
   it("a side swipe knocks both cars apart without a fishtail", () => {
     const { race, a, b } = twoCars();
-    a.state = { z: 5000, x: 0.1, speed: 8000, xv: 0 };
-    b.state = { z: 5000, x: -0.1, speed: 8000, xv: 0 };
+    a.state = { z: 5000, x: 0.1, speed: 8000, xv: 0, drift: 0 };
+    b.state = { z: 5000, x: -0.1, speed: 8000, xv: 0, drift: 0 };
     race.step(FIXED_STEP, coast);
     expect(a.state.xv).toBeGreaterThan(0);
     expect(b.state.xv).toBeLessThan(0);
@@ -111,7 +112,13 @@ describe("race", () => {
       s.scenery.some((p) => Math.abs(p.offset) < 2.3),
     )!;
     const prop = seg.scenery.find((p) => Math.abs(p.offset) < 2.3)!;
-    a.state = { z: seg.index * 200 - 150, x: prop.offset, speed: 9000, xv: 0 };
+    a.state = {
+      z: seg.index * 200 - 150,
+      x: prop.offset,
+      speed: 9000,
+      xv: 0,
+      drift: 0,
+    };
     const events = race.step(FIXED_STEP, coast);
     expect(events.some((e) => e.racers.includes(a) && e.hard)).toBe(true);
     expect(a.state.speed).toBeLessThan(2000);
