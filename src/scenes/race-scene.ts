@@ -22,6 +22,7 @@ import { RoadRenderer, type CarSprite } from "../render/road-renderer";
 import { carTextureKey, type CarFrame } from "../render/textures";
 import { Hud } from "./hud";
 import { InputManager } from "./input-manager";
+import { TOUCH_INSET, TouchControls } from "./touch-controls";
 
 export interface RaceSceneData {
   eventId: string;
@@ -51,6 +52,7 @@ export class RaceScene extends Phaser.Scene {
   private event!: EventDefinition;
   private raceId = "";
   private acc = 0;
+  private viewInset = 0;
   private jolt = { time: 0, amp: 0 };
   private resultsShown = false;
 
@@ -93,14 +95,18 @@ export class RaceScene extends Phaser.Scene {
     );
     this.memories = new Map(rivals.map((d) => [d.name, newAIMemory()]));
 
-    this.road = new RoadRenderer(this, track);
-    this.controls = new InputManager(this);
+    const touch = this.sys.game.device.input.touch
+      ? new TouchControls(this)
+      : null;
+    this.viewInset = touch ? TOUCH_INSET - 40 : 0;
+    this.road = new RoadRenderer(this, track, this.viewInset);
+    this.controls = new InputManager(this, touch);
     this.player = this.add
       .image(0, 0, carTextureKey(car.id, paintId))
       .setOrigin(0.5, 1)
       .setDepth(1000);
     this.effects = new CarEffects(this, 1000);
-    this.hud = new Hud(this, () => this.pause());
+    this.hud = new Hud(this, () => this.pause(), touch ? TOUCH_INSET : 0);
 
     this.game.events.on(Phaser.Core.Events.BLUR, this.pause, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
@@ -203,7 +209,11 @@ export class RaceScene extends Phaser.Scene {
       .setScale(carWidth / straight.width)
       .setPosition(
         W / 2 + Phaser.Math.FloatBetween(-shake, shake),
-        H - 12 + bounce + Phaser.Math.FloatBetween(-shake, shake) / 2,
+        H -
+          this.viewInset -
+          12 +
+          bounce +
+          Phaser.Math.FloatBetween(-shake, shake) / 2,
       );
 
     this.effects.update(

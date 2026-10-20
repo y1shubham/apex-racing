@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { STEERING_INPUT } from "../config/game";
 import type { DriveInput } from "../core/physics";
+import type { TouchAction, TouchControls } from "./touch-controls";
 
 const K = Phaser.Input.Keyboard.KeyCodes;
 const BINDINGS = {
@@ -17,7 +18,10 @@ export class InputManager {
   private keys: Record<keyof typeof BINDINGS, Phaser.Input.Keyboard.Key[]>;
   private steer = 0;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(
+    scene: Phaser.Scene,
+    private touch: TouchControls | null = null,
+  ) {
     const kb = scene.input.keyboard!;
     const add = (codes: number[]) => codes.map((c) => kb.addKey(c));
     this.keys = {
@@ -36,8 +40,17 @@ export class InputManager {
   }
 
   read(dt: number): DriveInput {
+    const TOUCH: Partial<Record<keyof typeof BINDINGS, TouchAction>> = {
+      up: "gas",
+      down: "brake",
+      left: "left",
+      right: "right",
+      handbrake: "drift",
+      nitro: "nitro",
+    };
     const down = (k: keyof typeof BINDINGS) =>
-      this.keys[k].some((key) => key.isDown);
+      this.keys[k].some((key) => key.isDown) ||
+      (!!this.touch && !!TOUCH[k] && this.touch.isDown(TOUCH[k]));
     const target = (down("right") ? 1 : 0) - (down("left") ? 1 : 0);
     const rate =
       target === 0 || Math.sign(target) !== Math.sign(this.steer)

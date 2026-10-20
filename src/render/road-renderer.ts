@@ -82,6 +82,7 @@ export class RoadRenderer {
   constructor(
     private scene: Phaser.Scene,
     private track: Track,
+    private viewInset = 0,
   ) {
     this.backdropHorizon = BACKDROP_HORIZON[track.definition.id] ?? 0;
     const theme = track.definition.theme;
@@ -105,9 +106,10 @@ export class RoadRenderer {
 
   private layout(w: number, h: number) {
     this.size = { w, h };
-    this.horizon = h / 2;
+    this.horizon = (h - this.viewInset) / 2;
     this.sky.setScale(w, h);
-    this.backdropScale = (h / 2 / this.backdropHorizon) * 1.15;
+    this.backdropScale =
+      ((h - this.viewInset) / 2 / this.backdropHorizon) * 1.15;
     this.backdrop
       .setSize(w, this.backdrop.frame.height * this.backdropScale)
       .setTileScale(this.backdropScale);
@@ -123,8 +125,9 @@ export class RoadRenderer {
   ) {
     const { segments, length, definition } = this.track;
     const theme = definition.theme;
-    const { width: W, height: H } = this.scene.scale;
-    if (W !== this.size.w || H !== this.size.h) this.layout(W, H);
+    const { width: W, height: fullH } = this.scene.scale;
+    if (W !== this.size.w || fullH !== this.size.h) this.layout(W, fullH);
+    const H = fullH - this.viewInset;
     const g = this.road.clear();
 
     const base = segmentAt(this.track, cameraZ);
@@ -135,8 +138,8 @@ export class RoadRenderer {
     const playerY = lerp(playerSeg.y1, playerSeg.y2, playerPercent);
     const camX = cameraX * ROAD_WIDTH;
 
-    let maxY = H;
-    let roadTop = H;
+    let maxY = fullH;
+    let roadTop = fullH;
     let x = 0;
     let dx = -base.curve * basePercent;
     this.slices.length = 0;
