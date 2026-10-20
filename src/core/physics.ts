@@ -13,6 +13,20 @@ export interface DriveInput {
   steer: number;
 }
 
+export function steerRate(ratio: number, car: CarDefinition, offroad: boolean) {
+  return (
+    Math.min(1, ratio * P.lowSpeedSteerRamp) *
+    (1 - P.highSpeedSteerLoss * ratio) *
+    car.handling *
+    (offroad ? P.offroadSteer : 1) *
+    P.steerRate
+  );
+}
+
+export function driftRate(curve: number, ratio: number, car: CarDefinition) {
+  return (curve * ratio * ratio * P.centrifugal) / car.grip;
+}
+
 export function stepVehicle(
   s: VehicleState,
   input: DriveInput,
@@ -24,13 +38,8 @@ export function stepVehicle(
   const ratio = Math.min(1, Math.abs(s.speed) / car.maxSpeed);
   const offroad = Math.abs(s.x) > 1;
 
-  const steerPower =
-    Math.min(1, ratio * P.lowSpeedSteerRamp) *
-    (1 - P.highSpeedSteerLoss * ratio) *
-    car.handling *
-    (offroad ? P.offroadSteer : 1);
-  let x = s.x + input.steer * steerPower * P.steerRate * dt;
-  x -= (curve * ratio * ratio * P.centrifugal * dt) / car.grip;
+  let x = s.x + input.steer * steerRate(ratio, car, offroad) * dt;
+  x -= driftRate(curve, ratio, car) * dt;
   x = Math.max(-P.maxOffset, Math.min(P.maxOffset, x));
 
   let speed = s.speed;

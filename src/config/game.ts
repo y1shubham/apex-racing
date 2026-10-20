@@ -26,3 +26,26 @@ export const PHYSICS = {
   offroadSteer: 0.6,
   maxOffset: 2.5,
 };
+
+export const RACE = {
+  laps: 2,
+  countdownSeconds: 3,
+  gridRowGap: 1200,
+  gridLaneX: 0.35,
+};
+
+export const COLLISION = {
+  carLength: 900,
+  carWidth: 0.25,
+  rearSpeedKeep: 0.92,
+  frontPush: 0.15,
+  spinThreshold: 0.3,
+  spinSeconds: 1,
+  spinDrag: 1.5,
+};
+
+export const STEERING_INPUT = {
+  rise: 5,
+  return: 8,
+  leanFrameThreshold: 0.3,
+};

@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import {
   CAMERA_DEPTH,
   CAMERA_HEIGHT,
+  CAR_WORLD_WIDTH,
   DRAW_DISTANCE,
   LANES,
   PLAYER_Z,
@@ -27,8 +28,19 @@ interface Point {
 interface Slice {
   segment: Segment;
   p1: Point;
+  p2: Point;
   clip: number;
   inFront: boolean;
+  nearerThanPlayer: boolean;
+  cars: CarSprite[];
+}
+
+export interface CarSprite {
+  z: number;
+  x: number;
+  texture: string;
+  sizeTexture: string;
+  angle: number;
 }
 
 const lerp = (a: number, b: number, p: number) => a + (b - a) * p;
@@ -66,6 +78,7 @@ export class RoadRenderer {
   private horizon = 0;
   private size = { w: 0, h: 0 };
   private bgOffset = 0;
+  private used = 0;
 
   constructor(
     private scene: Phaser.Scene,
@@ -101,7 +114,13 @@ export class RoadRenderer {
     this.ground.setSize(w, h);
   }
 
-  render(cameraZ: number, cameraX: number, speedRatio: number, dt: number) {
+  render(
+    cameraZ: number,
+    cameraX: number,
+    speedRatio: number,
+    dt: number,
+    cars: CarSprite[] = [],
+  ) {
     const { segments, length, definition } = this.track;
     const theme = definition.theme;
     const { width: W, height: H } = this.scene.scale;
@@ -146,7 +165,15 @@ export class RoadRenderer {
       x += dx;
       dx += segment.curve;
       const inFront = p1.camZ > CAMERA_DEPTH;
-      this.slices.push({ segment, p1, clip: maxY, inFront });
+      this.slices.push({
+        segment,
+        p1,
+        p2,
+        clip: maxY,
+        inFront,
+        nearerThanPlayer: p1.camZ < PLAYER_Z,
+        cars: [],
+      });
       if (!inFront || p2.y >= p1.y || p2.y >= maxY) continue;
 
       const c = segment.light ? 0 : 1;
@@ -216,42 +243,91 @@ export class RoadRenderer {
     ).tilePositionX = this.bgOffset;
     this.ground.setY(roadTop);
 
-    this.renderScenery(W);
+    for (const car of cars) {
+      const n = Math.floor(
+        ((((car.z - base.index * SEGMENT_LENGTH) % length) + length) % length) /
+          SEGMENT_LENGTH,
+      );
+      this.slices[n]?.cars.push(car);
+    }
+    this.renderSprites(W);
   }
 
-  private renderScenery(W: number) {
-    let used = 0;
+  private place(
+    key: string,
+    x: number,
+    y: number,
+    destW: number,
+    destH: number,
+    originX: number,
+    clip: number,
+    depth: number,
+    angle: number,
+  ) {
+    const frame = this.scene.textures.getFrame(key);
+    const visibleH = destH - Math.max(0, y - clip);
+    const W = this.size.w;
+    if (destW < 1 || visibleH <= 0 || x < -destW || x > W + destW) return;
+    const img =
+      this.pool[this.used] ??
+      (this.pool[this.used] = this.scene.add.image(0, 0, key));
+    this.used++;
+    img
+      .setTexture(key)
+      .setOrigin(originX, 1)
+      .setPosition(x, y)
+      .setDisplaySize(destW, destH)
+      .setCrop(0, 0, frame.width, (frame.height * visibleH) / destH)
+      .setAngle(angle)
+      .setDepth(depth + this.used)
+      .setVisible(true);
+  }
+
+  private renderSprites(W: number) {
+    this.used = 0;
+    const worldToScreen = (W / 2) * SPRITE_SCALE * ROAD_WIDTH;
     for (let n = this.slices.length - 1; n > 0; n--) {
-      const { segment, p1, clip, inFront } = this.slices[n]!;
+      const { segment, p1, p2, clip, inFront, nearerThanPlayer, cars } =
+        this.slices[n]!;
       if (!inFront) continue;
+      const depth = nearerThanPlayer ? 1500 : 10;
       for (const s of segment.scenery) {
         const frame = this.scene.textures.getFrame(s.kind);
-        const destH =
-          SCENERY_WORLD_HEIGHT[s.kind] *
-          p1.scale *
-          (W / 2) *
-          SPRITE_SCALE *
-          ROAD_WIDTH;
-        const destW = (destH * frame.width) / frame.height;
-        const visibleH = destH - Math.max(0, p1.y - clip);
-        const sx = p1.x + s.offset * p1.w;
-        if (destW < 1 || visibleH <= 0 || sx < -destW || sx > W + destW)
-          continue;
-        const img =
-          this.pool[used] ??
-          (this.pool[used] = this.scene.add.image(0, 0, s.kind));
-        used++;
-        img
-          .setTexture(s.kind)
-          .setOrigin(s.offset < 0 ? 1 : 0, 1)
-          .setPosition(sx, p1.y)
-          .setDisplaySize(destW, destH)
-          .setCrop(0, 0, frame.width, (frame.height * visibleH) / destH)
-          .setDepth(10 + used)
-          .setVisible(true);
+        const destH = SCENERY_WORLD_HEIGHT[s.kind] * p1.scale * worldToScreen;
+        this.place(
+          s.kind,
+          p1.x + s.offset * p1.w,
+          p1.y,
+          (destH * frame.width) / frame.height,
+          destH,
+          s.offset < 0 ? 1 : 0,
+          clip,
+          depth,
+          0,
+        );
+      }
+      for (const car of cars) {
+        const t = (car.z % SEGMENT_LENGTH) / SEGMENT_LENGTH;
+        const scale = lerp(p1.scale, p2.scale, t);
+        const size = this.scene.textures.getFrame(car.sizeTexture);
+        const frame = this.scene.textures.getFrame(car.texture);
+        const destW =
+          ((CAR_WORLD_WIDTH * scale * worldToScreen) / size.width) *
+          frame.width;
+        this.place(
+          car.texture,
+          lerp(p1.x, p2.x, t) + scale * car.x * ROAD_WIDTH * (W / 2),
+          lerp(p1.y, p2.y, t),
+          destW,
+          (destW * frame.height) / frame.width,
+          0.5,
+          clip,
+          depth,
+          car.angle,
+        );
       }
     }
-    for (let i = used; i < this.pool.length; i++)
+    for (let i = this.used; i < this.pool.length; i++)
       this.pool[i]!.setVisible(false);
   }
 }

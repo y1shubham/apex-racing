@@ -15,6 +15,7 @@ export class BootScene extends Phaser.Scene {
     this.scene.start("race", {
       trackId: params.get("track"),
       paintId: params.get("color"),
+      difficulty: params.get("difficulty"),
     });
   }
 }
