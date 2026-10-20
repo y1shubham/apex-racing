@@ -10,7 +10,6 @@ const BINDINGS = {
   left: [K.A, K.LEFT],
   right: [K.D, K.RIGHT],
   pause: [K.ESC, K.P],
-  handbrake: [K.SPACE],
   nitro: [K.SHIFT],
 };
 
@@ -30,7 +29,6 @@ export class InputManager {
       left: add(BINDINGS.left),
       right: add(BINDINGS.right),
       pause: add(BINDINGS.pause),
-      handbrake: add(BINDINGS.handbrake),
       nitro: add(BINDINGS.nitro),
     };
   }
@@ -45,7 +43,6 @@ export class InputManager {
       down: "brake",
       left: "left",
       right: "right",
-      handbrake: "drift",
       nitro: "nitro",
     };
     const down = (k: keyof typeof BINDINGS) =>
@@ -62,7 +59,7 @@ export class InputManager {
       throttle: down("up"),
       brake: down("down"),
       steer: this.steer,
-      handbrake: down("handbrake"),
+      handbrake: false,
       nitro: down("nitro"),
     };
   }

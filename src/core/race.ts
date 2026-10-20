@@ -24,6 +24,7 @@ export interface Racer {
   boosting: boolean;
   driftTime: number;
   driftControl: number;
+  driftHold: number;
   driftPending: number;
   driftNitroPending: number;
   driftScore: number;
@@ -77,6 +78,7 @@ export class Race {
         boosting: false,
         driftTime: 0,
         driftControl: 0,
+        driftHold: 0,
         driftPending: 0,
         driftNitroPending: 0,
         driftScore: 0,
@@ -135,6 +137,7 @@ export class Race {
 
     for (const r of this.racers) {
       const input = { ...inputFor(r) };
+      if (r.isPlayer) input.handbrake ||= this.autoDrift(r, input, dt);
       if (r.wobble > 0) {
         const t = COLLISION.wobbleSeconds - r.wobble;
         const sway = Math.sin(t * COLLISION.wobbleFrequency);
@@ -164,6 +167,22 @@ export class Race {
     const events = [...this.resolveCollisions(), ...this.resolveProps()];
     if (this.player.finishTime !== null) this.status = "finished";
     return events;
+  }
+
+  private autoDrift(r: Racer, input: DriveInput, dt: number) {
+    const ratio = r.state.speed / r.car.maxSpeed;
+    if (r.state.drift)
+      return (
+        input.throttle &&
+        Math.sign(input.steer) === r.state.drift &&
+        Math.abs(input.steer) > DRIFT.autoKeepSteer
+      );
+    const charging =
+      input.throttle &&
+      Math.abs(input.steer) > DRIFT.autoSteer &&
+      ratio > DRIFT.autoSpeedRatio;
+    r.driftHold = charging ? r.driftHold + dt : 0;
+    return r.driftHold >= DRIFT.autoHoldSeconds;
   }
 
   private updateDrift(r: Racer, curve: number, dt: number) {

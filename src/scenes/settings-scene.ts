@@ -16,7 +16,7 @@ const CONTROLS: [string, string][] = [
   ["Accelerate", "W / Up"],
   ["Brake / reverse", "S / Down"],
   ["Steer", "A D / Left Right"],
-  ["Drift", "Space"],
+  ["Drift", "Gas + full steer at speed"],
   ["Nitro", "Shift"],
   ["Pause", "Esc / P"],
 ];

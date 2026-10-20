@@ -1,8 +1,7 @@
 import * as Phaser from "phaser";
 import { COLORS, label, UI_DEPTH } from "./ui";
 
-export type TouchAction =
-  "left" | "right" | "gas" | "brake" | "drift" | "nitro";
+export type TouchAction = "left" | "right" | "gas" | "brake" | "nitro";
 
 const BIG = 72;
 const SMALL = 56;
@@ -84,7 +83,6 @@ export class TouchControls {
     add("gas", right, row1, BIG, "Gas", COLORS.accentFill);
     add("brake", right - BIG - GAP, row1, BIG, "Brake");
     add("nitro", right, row2, SMALL, "Nitro", COLORS.meterFill);
-    add("drift", right - BIG - GAP, row2, SMALL, "Drift");
 
     const releaseAll = (p: Phaser.Input.Pointer) =>
       this.pads.forEach((pad) => this.release(pad, p.id));

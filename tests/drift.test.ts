@@ -148,3 +148,49 @@ describe("drift rewards", () => {
     expect(p.nitro).toBeCloseTo(50 - NITRO.burnRate, 0);
   });
 });
+
+describe("auto drift", () => {
+  const setup = (speedRatio: number) => {
+    const race = new Race(buildTrack(TRACKS[1]!), [
+      { id: "p", name: "You", isPlayer: true, paintId: "crimson", car },
+    ]);
+    race.status = "racing";
+    const p = race.player;
+    p.state = { ...fast, speed: car.maxSpeed * speedRatio };
+    return { race, p };
+  };
+  const hold = (race: Race, input: DriveInput, seconds: number) => {
+    for (let i = 0; i < seconds / FIXED_STEP; i++)
+      race.step(FIXED_STEP, () => input);
+  };
+  const gasSteer = { ...IDLE_INPUT, throttle: true, steer: 1 };
+
+  it("starts after holding gas and full steer at high speed", () => {
+    const { race, p } = setup(0.95);
+    hold(race, gasSteer, DRIFT.autoHoldSeconds * 0.5);
+    expect(p.state.drift).toBe(0);
+    hold(race, gasSteer, DRIFT.autoHoldSeconds);
+    expect(p.state.drift).toBe(1);
+  });
+
+  it("does not start below the speed threshold or without gas", () => {
+    const slow = setup(0.6);
+    hold(slow.race, gasSteer, 1);
+    expect(slow.p.state.drift).toBe(0);
+    const coast = setup(0.95);
+    hold(coast.race, { ...IDLE_INPUT, steer: 1 }, 1);
+    expect(coast.p.state.drift).toBe(0);
+  });
+
+  it("ends when steering straightens and banks the drift", () => {
+    const { race, p } = setup(0.95);
+    const bend = race.track.segments.find((seg) => seg.curve > 4)!;
+    p.state.z = bend.index * 200;
+    hold(race, gasSteer, DRIFT.autoHoldSeconds + 0.05);
+    hold(race, { ...gasSteer, steer: 0.4 }, 0.8);
+    expect(p.state.drift).toBe(1);
+    hold(race, { ...IDLE_INPUT, throttle: true }, FIXED_STEP);
+    expect(p.state.drift).toBe(0);
+    expect(p.driftScore).toBeGreaterThan(0);
+  });
+});
