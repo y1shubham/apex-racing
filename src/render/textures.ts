@@ -17,6 +17,9 @@ const backdropUrls = import.meta.glob<string>("../assets/backdrops/*.webp", {
   import: "default",
 });
 
+import logoUrl from "../assets/ui/logo.webp";
+import menuBgUrl from "../assets/ui/menu-bg.webp";
+
 export const SCENERY_WORLD_HEIGHT: Record<SceneryKind, number> = {
   palm: 420,
   "coast-lamp": 280,
@@ -39,8 +42,11 @@ export const carTextureKey = (
   frame: CarFrame = "straight",
 ) => `car-${carId}-${paintId}-${frame}`;
 export const backdropKey = (trackId: string) => `bg-${trackId}`;
-export const BACKDROP_HEIGHT = 525;
-export const BACKDROP_HORIZON = 449;
+export const BACKDROP_HORIZON: Record<string, number> = {
+  "sunset-coast": 529,
+  "neon-circuit": 571,
+  "alpine-rush": 580,
+};
 
 const fileKey = (path: string) =>
   path.slice(path.lastIndexOf("/") + 1, path.lastIndexOf("."));
@@ -49,6 +55,8 @@ export function loadSprites(scene: Phaser.Scene) {
   for (const [path, url] of Object.entries({ ...carUrls, ...sceneryUrls })) {
     scene.load.image(fileKey(path), url);
   }
+  scene.load.image("logo", logoUrl);
+  scene.load.image("menu-bg", menuBgUrl);
   for (const [path, url] of Object.entries(backdropUrls)) {
     scene.load.image(backdropKey(fileKey(path)), url);
   }

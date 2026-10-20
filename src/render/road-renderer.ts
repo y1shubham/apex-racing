@@ -12,7 +12,6 @@ import {
 } from "../config/game";
 import { segmentAt, type Segment, type Track } from "../core/track";
 import {
-  BACKDROP_HEIGHT,
   BACKDROP_HORIZON,
   backdropKey,
   SCENERY_WORLD_HEIGHT,
@@ -69,6 +68,7 @@ function project(
 export class RoadRenderer {
   private backdrop: Phaser.GameObjects.TileSprite;
   private backdropScale = 1;
+  private backdropHorizon: number;
   private sky: Phaser.GameObjects.Graphics;
   private ground: Phaser.GameObjects.Rectangle;
   private road: Phaser.GameObjects.Graphics;
@@ -83,6 +83,7 @@ export class RoadRenderer {
     private scene: Phaser.Scene,
     private track: Track,
   ) {
+    this.backdropHorizon = BACKDROP_HORIZON[track.definition.id] ?? 0;
     const theme = track.definition.theme;
     this.sky = scene.add
       .graphics()
@@ -106,9 +107,9 @@ export class RoadRenderer {
     this.size = { w, h };
     this.horizon = h / 2;
     this.sky.setScale(w, h);
-    this.backdropScale = (h / 2 / BACKDROP_HORIZON) * 1.15;
+    this.backdropScale = (h / 2 / this.backdropHorizon) * 1.15;
     this.backdrop
-      .setSize(w, BACKDROP_HEIGHT * this.backdropScale)
+      .setSize(w, this.backdrop.frame.height * this.backdropScale)
       .setTileScale(this.backdropScale);
     this.ground.setSize(w, h);
   }
@@ -238,7 +239,7 @@ export class RoadRenderer {
     );
     this.bgOffset += playerSeg.curve * speedRatio * dt * 40;
     this.backdrop.setY(
-      this.horizon - BACKDROP_HORIZON * this.backdropScale,
+      this.horizon - this.backdropHorizon * this.backdropScale,
     ).tilePositionX = this.bgOffset;
     this.ground.setY(roadTop);
 

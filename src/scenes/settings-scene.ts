@@ -1,6 +1,15 @@
 import * as Phaser from "phaser";
 import { defaultSave, loadSave, writeSave, type Settings } from "../core/save";
-import { backdrop, button, COLORS, header, restartOnResize, text } from "./ui";
+import {
+  backdrop,
+  button,
+  COLORS,
+  header,
+  label,
+  panel,
+  restartOnResize,
+  text,
+} from "./ui";
 
 const CONTROLS: [string, string][] = [
   ["Accelerate", "W / Up"],
@@ -20,10 +29,18 @@ export class SettingsScene extends Phaser.Scene {
     restartOnResize(this);
     const { width: W, height: H } = this.scale;
     const save = loadSave();
-    backdrop(this, "neon-circuit");
-    header(this, "SETTINGS", () => this.scene.start("menu"));
+    backdrop(this, 0.6);
+    header(this, "Settings", () => this.scene.start("menu"));
 
-    const volume = (key: keyof Settings, label: string, y: number) => {
+    const w = Math.min(W - 32, 420);
+    const left = W / 2 - w / 2 + 20;
+    const right = W / 2 + w / 2 - 20;
+
+    const audioTop = 84;
+    const audioH = 132;
+    panel(this, W / 2, audioTop + audioH / 2, w, audioH);
+    label(this, "Audio").setPosition(left, audioTop + 16);
+    const volume = (key: keyof Settings, name: string, y: number) => {
       const change = (d: number) => {
         save.settings[key] =
           Math.round(Math.min(1, Math.max(0, save.settings[key] + d)) * 10) /
@@ -31,60 +48,75 @@ export class SettingsScene extends Phaser.Scene {
         writeSave(save);
         this.scene.restart();
       };
-      text(this, 18)
-        .setText(`${label}  ${Math.round(save.settings[key] * 100)}%`)
+      text(this, 16).setText(name).setOrigin(0, 0.5).setPosition(left, y);
+      text(this, 16, COLORS.accent)
+        .setText(`${Math.round(save.settings[key] * 100)}%`)
         .setOrigin(0.5)
-        .setPosition(W / 2, y);
-      button(this, W / 2 - 130, y, "-", () => change(-0.1), {
-        width: 48,
-        height: 44,
+        .setPosition(right - 66, y);
+      button(this, right - 118, y, "-", () => change(-0.1), {
+        width: 40,
+        height: 40,
+        size: 20,
       });
-      button(this, W / 2 + 130, y, "+", () => change(0.1), {
-        width: 48,
-        height: 44,
+      button(this, right - 20, y, "+", () => change(0.1), {
+        width: 40,
+        height: 40,
+        size: 20,
       });
     };
-    volume("music", "Music", 110);
-    volume("sfx", "Effects", 166);
+    volume("music", "Music", audioTop + 62);
+    volume("sfx", "Effects", audioTop + 106);
 
-    text(this, 20, COLORS.accent)
-      .setText("CONTROLS")
-      .setOrigin(0.5, 0)
-      .setPosition(W / 2, 214);
+    const controlsTop = audioTop + audioH + 16;
+    const controlsH = 52 + CONTROLS.length * 30;
+    panel(this, W / 2, controlsTop + controlsH / 2, w, controlsH);
+    label(this, "Controls").setPosition(left, controlsTop + 16);
     CONTROLS.forEach(([action, keys], i) => {
-      const y = 250 + i * 26;
-      text(this, 15, COLORS.dim)
+      const y = controlsTop + 56 + i * 30;
+      text(this, 14, COLORS.dim)
         .setText(action)
-        .setPosition(W / 2 - 150, y);
-      text(this, 15)
-        .setText(keys)
-        .setOrigin(1, 0)
-        .setPosition(W / 2 + 150, y);
+        .setOrigin(0, 0.5)
+        .setPosition(left, y);
+      label(this, keys, 12, COLORS.text)
+        .setOrigin(1, 0.5)
+        .setPosition(right, y);
     });
 
-    const y = H - 70;
+    const y = H - Math.max(28, H * 0.04) - 27;
     if (data.confirmReset) {
-      text(this, 15, COLORS.bad)
-        .setText("Erase all progress?")
+      label(this, "Erase all progress? This cannot be undone.", 12, COLORS.bad)
         .setOrigin(0.5)
-        .setPosition(W / 2, y - 60);
+        .setPosition(W / 2, y - 48);
+      const half = (w - 12) / 2;
       button(
         this,
-        W / 2 - 70,
+        W / 2 - half / 2 - 6,
         y,
         "Erase",
         () => {
           writeSave({ ...defaultSave(), settings: save.settings });
           this.scene.start("menu");
         },
-        { width: 120, accent: true },
+        { width: half, accent: true },
       );
-      button(this, W / 2 + 70, y, "Cancel", () => this.scene.restart(), {
-        width: 120,
-      });
+      button(
+        this,
+        W / 2 + half / 2 + 6,
+        y,
+        "Cancel",
+        () => this.scene.restart(),
+        {
+          width: half,
+        },
+      );
     } else {
-      button(this, W / 2, y, "Reset progress", () =>
-        this.scene.restart({ confirmReset: true }),
+      button(
+        this,
+        W / 2,
+        y,
+        "Reset progress",
+        () => this.scene.restart({ confirmReset: true }),
+        { width: w },
       );
     }
   }

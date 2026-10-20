@@ -16,6 +16,9 @@ import {
   button,
   COLORS,
   header,
+  label,
+  panel,
+  pill,
   restartOnResize,
   text,
   UI_DEPTH,
@@ -26,12 +29,14 @@ interface GarageData {
   message?: string;
 }
 
-const STAT_LABELS = [
+const STATS = [
   ["speed", "Top speed"],
   ["acceleration", "Acceleration"],
   ["handling", "Handling"],
   ["nitro", "Nitro"],
 ] as const;
+
+const LOCKED_TINT = 0x3a3d46;
 
 export class GarageScene extends Phaser.Scene {
   constructor() {
@@ -55,140 +60,145 @@ export class GarageScene extends Phaser.Scene {
       if (result.ok) writeSave(result.save);
       this.scene.restart({ index, message: result.ok ? "" : result.reason });
     };
-
-    backdrop(this, "alpine-rush");
-    header(this, "GARAGE", () => this.scene.start("menu"));
-    text(this, 16, COLORS.dim)
-      .setText(`${save.credits} credits`)
-      .setOrigin(0.5, 0)
-      .setPosition(W / 2, 64);
-
     const go = (d: number) =>
       this.scene.restart({ index: (index + d + CARS.length) % CARS.length });
-    button(this, 36, H * 0.27, "<", () => go(-1), {
-      width: 48,
-      height: 64,
-      size: 26,
-    });
-    button(this, W - 36, H * 0.27, ">", () => go(1), {
-      width: 48,
-      height: 64,
-      size: 26,
-    });
+
+    backdrop(this, 0.6);
+    header(this, "Garage", () => this.scene.start("menu"));
+    pill(this, W / 2, 84, `${save.credits} credits`);
+
+    const panelW = Math.min(W - 32, 420);
+    const panelH = owned ? 256 : 280;
+    const buttonY = H - Math.max(28, H * 0.04) - 27;
+    const panelTop = buttonY - 27 - 40 - panelH;
+    const stageTop = 112;
+    const stageH = Math.max(90, panelTop - stageTop - 12);
 
     const img = this.add
-      .image(W / 2, H * 0.34, carTextureKey(car.id, paints.selected))
+      .image(W / 2, stageTop + stageH, carTextureKey(car.id, paints.selected))
       .setOrigin(0.5, 1)
       .setDepth(UI_DEPTH);
-    img.setScale(Math.min(W - 120, 300) / img.width);
-    if (!owned) img.setTint(0x555555);
-    text(this, 28)
-      .setText(car.name)
-      .setOrigin(0.5, 0)
-      .setPosition(W / 2, H * 0.35);
-    text(this, 14, COLORS.accent)
-      .setText(car.tier.toUpperCase())
-      .setOrigin(0.5, 0)
-      .setPosition(W / 2, H * 0.35 + 34);
+    img.setScale(
+      Math.min((W - 130) / img.width, stageH / img.height, 300 / img.width),
+    );
+    if (!owned) {
+      img.setTint(LOCKED_TINT);
+      pill(this, W / 2, stageTop + stageH / 2, "Locked");
+    }
+    const arrowY = stageTop + stageH / 2;
+    button(this, 38, arrowY, "‹", () => go(-1), {
+      width: 44,
+      height: 44,
+      size: 24,
+    });
+    button(this, W - 38, arrowY, "›", () => go(1), {
+      width: 44,
+      height: 44,
+      size: 24,
+    });
 
+    panel(this, W / 2, panelTop + panelH / 2, panelW, panelH);
+    const left = W / 2 - panelW / 2 + 20;
+    const right = W / 2 + panelW / 2 - 20;
+    let y = panelTop + 18;
+    text(this, 24).setText(car.name).setPosition(left, y);
+    const tier = label(this, car.tier, 11, COLORS.accent).setOrigin(1, 0);
+    tier.setPosition(right, y + 8);
+    y += 46;
+
+    const barX = left + 130;
+    const barW = right - barX;
     const stats = carStats(car);
-    const barW = Math.min(220, W - 180);
-    STAT_LABELS.forEach(([key, label], i) => {
-      const y = H * 0.35 + 68 + i * 28;
-      text(this, 14, COLORS.dim)
-        .setText(label)
-        .setPosition(W / 2 - barW / 2 - 70, y);
+    STATS.forEach(([key, name]) => {
+      label(this, name).setPosition(left, y);
       this.add
-        .rectangle(
-          W / 2 - barW / 2 + 40,
-          y + 4,
-          barW,
-          10,
-          COLORS.meterTrack,
-          0.6,
-        )
-        .setOrigin(0)
+        .graphics()
+        .fillStyle(COLORS.meterTrack, 0.5)
+        .fillRoundedRect(barX, y + 3, barW, 8, 4)
+        .fillStyle(COLORS.meterFill, 1)
+        .fillRoundedRect(barX, y + 3, Math.max(8, barW * stats[key]), 8, 4)
         .setDepth(UI_DEPTH);
-      this.add
-        .rectangle(
-          W / 2 - barW / 2 + 40,
-          y + 4,
-          barW * stats[key],
-          10,
-          COLORS.meterFill,
-        )
-        .setOrigin(0)
-        .setDepth(UI_DEPTH);
+      y += 26;
     });
+    y += 10;
 
-    const swatchY = H * 0.35 + 196;
-    const size = Math.min(44, (W - 40) / PAINTS.length - 10);
+    label(this, "Paint").setPosition(left, y);
+    if (owned)
+      label(this, `New paint ${PAINT_COST} cr`)
+        .setOrigin(1, 0)
+        .setPosition(right, y);
+    y += 40;
+    const gap = (right - left) / PAINTS.length;
     PAINTS.forEach((p, i) => {
-      const x = W / 2 + (i - (PAINTS.length - 1) / 2) * (size + 10);
+      const cx = left + gap * (i + 0.5);
       const has = paints.owned.includes(p.id);
+      const selected = p.id === paints.selected;
       const swatch = this.add
-        .rectangle(x, swatchY, size, size, p.color)
-        .setStrokeStyle(
-          p.id === paints.selected ? 4 : 2,
-          p.id === paints.selected ? 0xffffff : COLORS.buttonMuted,
-        )
-        .setAlpha(has ? 1 : 0.45)
+        .graphics({ x: cx, y })
+        .fillStyle(p.color, has ? 1 : 0.35)
+        .fillCircle(0, 0, 15)
+        .lineStyle(selected ? 3 : 1, 0xffffff, selected ? 1 : 0.3)
+        .strokeCircle(0, 0, selected ? 20 : 15)
         .setDepth(UI_DEPTH);
-      if (owned)
-        swatch
-          .setInteractive({ useHandCursor: true })
-          .on("pointerup", () =>
-            apply(
-              has
-                ? selectPaint(save, car.id, p.id)
-                : buyPaint(save, car.id, p.id),
-            ),
-          );
+      if (!owned) return;
+      this.add
+        .zone(cx, y, 44, 44)
+        .setDepth(UI_DEPTH)
+        .setInteractive({ useHandCursor: true })
+        .on("pointerover", () => swatch.setScale(1.1))
+        .on("pointerout", () => swatch.setScale(1))
+        .on("pointerup", () =>
+          apply(
+            has
+              ? selectPaint(save, car.id, p.id)
+              : buyPaint(save, car.id, p.id),
+          ),
+        );
     });
-    text(this, 13, COLORS.dim)
-      .setText(
-        owned
-          ? `Faded paints cost ${PAINT_COST} credits`
-          : "Unlock the car to paint it",
-      )
-      .setOrigin(0.5, 0)
-      .setPosition(W / 2, swatchY + size / 2 + 8);
+    if (!owned)
+      label(this, "Unlock this car to paint it")
+        .setOrigin(0.5, 0)
+        .setPosition(W / 2, y + 30);
 
-    const actionY = H - 70;
+    const hintY = buttonY - 27 - 20;
+    const buttonW = Math.min(W - 32, 420);
+    if (data.message)
+      text(this, 13, COLORS.bad)
+        .setText(data.message)
+        .setOrigin(0.5)
+        .setPosition(W / 2, hintY);
     if (!owned) {
       const event = EVENTS.find((e) => e.id === car.unlockEvent);
+      const affordable = save.credits >= car.unlockCost;
+      if (!data.message && event)
+        label(this, `Or win "${event.name}" to unlock free`, 12)
+          .setOrigin(0.5)
+          .setPosition(W / 2, hintY);
       button(
         this,
         W / 2,
-        actionY,
-        `Buy  ${car.unlockCost} cr`,
+        buttonY,
+        affordable ? `Buy  ${car.unlockCost} cr` : `Need ${car.unlockCost} cr`,
         () => apply(buyCar(save, car.id)),
-        {
-          accent: true,
-          disabled: save.credits < car.unlockCost,
-        },
+        { width: buttonW, accent: true, disabled: !affordable },
       );
-      if (event)
-        text(this, 13, COLORS.dim)
-          .setText(`or win "${event.name}"`)
-          .setOrigin(0.5, 0)
-          .setPosition(W / 2, actionY + 34);
     } else if (save.selectedCarId === car.id) {
-      button(this, W / 2, actionY, "Selected", () => {}, { disabled: true });
+      button(this, W / 2, buttonY, "Selected", () => {}, {
+        width: buttonW,
+        disabled: true,
+      });
     } else {
       button(
         this,
         W / 2,
-        actionY,
+        buttonY,
         "Select",
         () => apply(selectCar(save, car.id)),
-        { accent: true },
+        {
+          width: buttonW,
+          accent: true,
+        },
       );
     }
-    if (data.message)
-      text(this, 15, COLORS.bad)
-        .setText(data.message)
-        .setOrigin(0.5)
-        .setPosition(W / 2, actionY - 48);
   }
 }

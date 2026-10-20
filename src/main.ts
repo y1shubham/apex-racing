@@ -6,6 +6,16 @@ import { MenuScene } from "./scenes/menu-scene";
 import { RaceScene } from "./scenes/race-scene";
 import { SettingsScene } from "./scenes/settings-scene";
 
+const fontsReady = Promise.all(
+  ["500", "600", "700", "800"].map((w) =>
+    document.fonts.load(`${w} 16px Inter`),
+  ),
+);
+await Promise.race([
+  fontsReady.catch(() => undefined),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]);
+
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",

@@ -1,5 +1,4 @@
 import * as Phaser from "phaser";
-import { backdropKey } from "../render/textures";
 
 export const COLORS = {
   text: "#ffffff",
@@ -15,8 +14,15 @@ export const COLORS = {
   button: 0x1d1f24,
   buttonEdge: 0xff7a1a,
   buttonMuted: 0x3a3d46,
+  glass: 0x0d0e12,
+  glassEdge: 0xffffff,
+  onAccent: "#1b0d03",
+  accentHover: 0xff9a4d,
+  glassHover: 0x262a35,
 };
-export const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+export const RADIUS = 14;
+export const FONT = "Inter, system-ui, sans-serif";
+const TEXT_RESOLUTION = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
 export const UI_DEPTH = 3000;
 
 export const text = (scene: Phaser.Scene, size: number, color = COLORS.text) =>
@@ -24,11 +30,11 @@ export const text = (scene: Phaser.Scene, size: number, color = COLORS.text) =>
     .text(0, 0, "", {
       fontFamily: FONT,
       fontSize: `${size}px`,
-      fontStyle: "bold",
+      fontStyle: size >= 26 ? "800" : size >= 18 ? "700" : "600",
       color,
-      stroke: "#000000",
-      strokeThickness: 4,
+      resolution: TEXT_RESOLUTION,
     })
+    .setShadow(0, 2, "#000000", 6, false, true)
     .setDepth(UI_DEPTH);
 
 export interface ButtonOptions {
@@ -47,38 +53,215 @@ export function button(
   onClick: () => void,
   {
     width = 260,
-    height = 56,
-    size = 22,
+    height = 54,
+    size = 15,
     disabled = false,
     accent = false,
   }: ButtonOptions = {},
 ) {
-  const bg = scene.add
-    .rectangle(
-      x,
-      y,
-      width,
-      height,
-      accent ? COLORS.accentFill : COLORS.button,
-      disabled ? 0.5 : 1,
-    )
-    .setStrokeStyle(2, disabled ? COLORS.buttonMuted : COLORS.buttonEdge)
-    .setDepth(UI_DEPTH);
-  const label_ = text(scene, size, disabled ? COLORS.dim : COLORS.text)
-    .setText(label)
+  const r = Math.min(RADIUS, height / 2);
+  if (disabled) accent = false;
+  const g = scene.add.graphics({ x, y }).setDepth(UI_DEPTH);
+  const draw = (hover: boolean) => {
+    g.clear();
+    if (accent && !disabled)
+      g.fillStyle(COLORS.accentFill, hover ? 0.38 : 0.22).fillRoundedRect(
+        -width / 2 - 5,
+        -height / 2 - 5,
+        width + 10,
+        height + 10,
+        r + 5,
+      );
+    const fill = accent
+      ? hover
+        ? COLORS.accentHover
+        : COLORS.accentFill
+      : hover
+        ? COLORS.glassHover
+        : COLORS.glass;
+    g.fillStyle(fill, accent ? 1 : hover ? 0.82 : 0.62)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, r)
+      .lineStyle(
+        hover && !accent ? 1.5 : 1,
+        hover && !accent ? COLORS.accentFill : COLORS.glassEdge,
+        hover && !accent ? 0.9 : accent ? 0.35 : 0.22,
+      )
+      .strokeRoundedRect(-width / 2, -height / 2, width, height, r);
+  };
+  draw(false);
+  const caption = text(
+    scene,
+    size,
+    accent ? COLORS.onAccent : disabled ? COLORS.dim : COLORS.text,
+  )
+    .setText(label.toUpperCase())
+    .setLetterSpacing(1.5)
     .setOrigin(0.5)
     .setPosition(x, y);
-  if (!disabled)
-    bg.setInteractive({ useHandCursor: true }).on("pointerup", onClick);
-  return [bg, label_] as const;
+  if (accent) caption.setShadow(0, 0, "#000000", 0);
+  const hit = scene.add.zone(x, y, width, height).setDepth(UI_DEPTH);
+  if (disabled) {
+    g.setAlpha(0.7);
+  } else {
+    let pressed = false;
+    const scaleTo = (value: number) =>
+      scene.tweens.add({
+        targets: [g, caption],
+        scale: value,
+        duration: 90,
+        ease: "Quad.easeOut",
+      });
+    hit
+      .setInteractive({ useHandCursor: true })
+      .on("pointerover", () => draw(true))
+      .on("pointerout", () => {
+        draw(false);
+        if (pressed) scaleTo(1);
+        pressed = false;
+      })
+      .on("pointerdown", () => {
+        pressed = true;
+        draw(true);
+        scaleTo(0.96);
+      })
+      .on("pointerup", () => {
+        if (!pressed) return;
+        pressed = false;
+        scene.tweens.add({
+          targets: [g, caption],
+          scale: 1,
+          duration: 140,
+          ease: "Back.easeOut",
+          onComplete: onClick,
+        });
+      });
+  }
+  return [g, caption, hit] as const;
 }
 
-export function backdrop(scene: Phaser.Scene, trackId = "neon-circuit") {
-  const { width: W, height: H } = scene.scale;
-  const img = scene.add.image(W / 2, H / 2, backdropKey(trackId));
-  img.setScale(Math.max(W / img.width, H / img.height));
-  scene.add.rectangle(0, 0, W, H, COLORS.panel, 0.6).setOrigin(0);
+export function pill(scene: Phaser.Scene, x: number, y: number, label: string) {
+  const caption = text(scene, 13, COLORS.text)
+    .setText(label.toUpperCase())
+    .setLetterSpacing(1.5)
+    .setOrigin(0.5);
+  const w = caption.width + 28;
+  const h = 30;
+  scene.add
+    .graphics({ x, y })
+    .fillStyle(COLORS.glass, 0.6)
+    .fillRoundedRect(-w / 2, -h / 2, w, h, h / 2)
+    .lineStyle(1, COLORS.glassEdge, 0.2)
+    .strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2)
+    .setDepth(UI_DEPTH);
+  caption.setPosition(x, y).setDepth(UI_DEPTH + 1);
 }
+
+export function bottomScrim(scene: Phaser.Scene, from: number) {
+  const { width: W, height: H } = scene.scale;
+  scene.add
+    .graphics()
+    .fillGradientStyle(
+      COLORS.panel,
+      COLORS.panel,
+      COLORS.panel,
+      COLORS.panel,
+      0,
+      0,
+      0.88,
+      0.88,
+    )
+    .fillRect(0, from, W, H - from);
+}
+
+export function backdrop(scene: Phaser.Scene, dim = 0.45) {
+  const { width: W, height: H } = scene.scale;
+  const img = scene.add.image(W / 2, H / 2, "menu-bg");
+  img.setScale(Math.max(W / img.width, H / img.height));
+  scene.add.rectangle(0, 0, W, H, COLORS.panel, dim).setOrigin(0);
+}
+
+export interface PanelOptions {
+  alpha?: number;
+  highlight?: boolean;
+  radius?: number;
+  onClick?: () => void;
+}
+
+export function panel(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  {
+    alpha = 0.62,
+    highlight = false,
+    radius = RADIUS,
+    onClick,
+  }: PanelOptions = {},
+) {
+  const g = scene.add.graphics({ x, y }).setDepth(UI_DEPTH - 1);
+  const draw = (hover: boolean) => {
+    g.clear();
+    if (highlight)
+      g.fillStyle(COLORS.accentFill, 0.18).fillRoundedRect(
+        -width / 2 - 4,
+        -height / 2 - 4,
+        width + 8,
+        height + 8,
+        radius + 4,
+      );
+    g.fillStyle(hover ? COLORS.glassHover : COLORS.glass, hover ? 0.82 : alpha)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, radius)
+      .lineStyle(
+        highlight || hover ? 1.5 : 1,
+        highlight || hover ? COLORS.accentFill : COLORS.glassEdge,
+        highlight || hover ? 0.9 : 0.18,
+      )
+      .strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
+  };
+  draw(false);
+  if (onClick) {
+    const hit = scene.add
+      .zone(x, y, width, height)
+      .setDepth(UI_DEPTH)
+      .setInteractive({ useHandCursor: true });
+    let pressed = false;
+    hit
+      .on("pointerover", () => draw(true))
+      .on("pointerout", () => {
+        draw(false);
+        pressed = false;
+        g.setScale(1);
+      })
+      .on("pointerdown", () => {
+        pressed = true;
+        scene.tweens.add({ targets: g, scale: 0.98, duration: 90 });
+      })
+      .on("pointerup", () => {
+        if (!pressed) return;
+        pressed = false;
+        scene.tweens.add({
+          targets: g,
+          scale: 1,
+          duration: 140,
+          ease: "Back.easeOut",
+          onComplete: onClick,
+        });
+      });
+  }
+  return g;
+}
+
+export const label = (
+  scene: Phaser.Scene,
+  value: string,
+  size = 12,
+  color = COLORS.dim,
+) =>
+  text(scene, size, color).setText(value.toUpperCase()).setLetterSpacing(1.5);
+
+export const HEADER_HEIGHT = 72;
 
 export function header(
   scene: Phaser.Scene,
@@ -86,12 +269,17 @@ export function header(
   onBack?: () => void,
 ) {
   const { width: W } = scene.scale;
-  text(scene, 30, COLORS.accent)
-    .setText(title)
-    .setOrigin(0.5, 0)
-    .setPosition(W / 2, 20);
+  text(scene, 18)
+    .setText(title.toUpperCase())
+    .setLetterSpacing(3)
+    .setOrigin(0.5)
+    .setPosition(W / 2, 36);
   if (onBack)
-    button(scene, 50, 40, "<", onBack, { width: 56, height: 44, size: 24 });
+    button(scene, 38, 36, "\u2039", onBack, {
+      width: 44,
+      height: 44,
+      size: 24,
+    });
 }
 
 export function restartOnResize(scene: Phaser.Scene) {
