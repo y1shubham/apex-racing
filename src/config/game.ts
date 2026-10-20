@@ -35,8 +35,8 @@ export const RACE = {
 };
 
 export const COLLISION = {
-  carLength: 900,
-  carWidth: 0.25,
+  carLength: 250,
+  carWidth: 0.22,
   rearSpeedKeep: 0.92,
   frontPush: 0.15,
   spinThreshold: 0.3,

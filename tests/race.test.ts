@@ -84,7 +84,7 @@ describe("race", () => {
       (typeof race.racers)[0],
     ];
     a.state = { z: 5000, x: 0, speed: 2000 };
-    b.state = { z: 4500, x: 0.05, speed: 9000 };
+    b.state = { z: 4850, x: 0.05, speed: 9000 };
     const events = race.step(FIXED_STEP, () => ({
       throttle: false,
       brake: false,
