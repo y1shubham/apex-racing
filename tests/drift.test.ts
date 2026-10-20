@@ -75,8 +75,8 @@ describe("nitro physics", () => {
 describe("drift rewards", () => {
   const setup = () => {
     const track = buildTrack(TRACKS[1]!);
-    const race = new Race(track, car, [
-      { id: "p", name: "You", isPlayer: true, paintId: "crimson" },
+    const race = new Race(track, [
+      { id: "p", name: "You", isPlayer: true, paintId: "crimson", car },
     ]);
     race.status = "racing";
     const seg = track.segments.find((s) => s.curve > 4)!;

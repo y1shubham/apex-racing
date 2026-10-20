@@ -31,7 +31,10 @@ const easeOut = (a: number, b: number, p: number) =>
 const easeInOut = (a: number, b: number, p: number) =>
   a + (b - a) * (0.5 - Math.cos(p * Math.PI) / 2);
 
-export function buildTrack(definition: TrackDefinition): Track {
+export function buildTrack(
+  definition: TrackDefinition,
+  reversed = false,
+): Track {
   const segments: Segment[] = [];
   let y = 0;
 
@@ -60,7 +63,12 @@ export function buildTrack(definition: TrackDefinition): Track {
     }
   };
 
-  definition.sections.forEach(addSection);
+  const sections = reversed
+    ? [...definition.sections]
+        .reverse()
+        .map((s) => ({ ...s, curve: -(s.curve ?? 0), hill: -(s.hill ?? 0) }))
+    : definition.sections;
+  sections.forEach(addSection);
   addSection({ length: 200, hill: -y / SEGMENT_LENGTH });
   segments[segments.length - 1]!.y2 = 0;
 

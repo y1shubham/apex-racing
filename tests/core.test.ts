@@ -35,6 +35,17 @@ describe("track", () => {
     },
   );
 
+  it("a reversed track mirrors the curves in reverse order", () => {
+    const fwd = buildTrack(TRACKS[0]!);
+    const rev = buildTrack(TRACKS[0]!, true);
+    const firstCurve = (t: typeof fwd) =>
+      t.segments.find((s) => s.curve)!.curve;
+    const lastCurve = (t: typeof fwd) =>
+      [...t.segments].reverse().find((s) => s.curve)!.curve;
+    expect(Math.sign(firstCurve(rev))).toBe(-Math.sign(lastCurve(fwd)));
+    expect(rev.segments.at(-1)!.y2).toBe(0);
+  });
+
   it("segmentAt wraps in both directions", () => {
     const t = buildTrack(TRACKS[0]!);
     expect(segmentAt(t, t.length + 1).index).toBe(0);

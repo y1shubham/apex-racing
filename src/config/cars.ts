@@ -1,6 +1,7 @@
 export interface CarDefinition {
   id: string;
   name: string;
+  tier: string;
   acceleration: number;
   maxSpeed: number;
   handling: number;
@@ -8,6 +9,7 @@ export interface CarDefinition {
   grip: number;
   nitroCapacity: number;
   unlockCost: number;
+  unlockEvent?: string;
   defaultPaint: string;
 }
 
@@ -15,6 +17,7 @@ export const CARS: CarDefinition[] = [
   {
     id: "apex-s1",
     name: "Apex S1",
+    tier: "Starter",
     acceleration: 2600,
     maxSpeed: 11000,
     handling: 1,
@@ -27,6 +30,7 @@ export const CARS: CarDefinition[] = [
   {
     id: "vortex-gt",
     name: "Vortex GT",
+    tier: "Performance",
     acceleration: 3400,
     maxSpeed: 11800,
     handling: 0.9,
@@ -34,11 +38,13 @@ export const CARS: CarDefinition[] = [
     grip: 0.9,
     nitroCapacity: 120,
     unlockCost: 1500,
+    unlockEvent: "summit-sprint",
     defaultPaint: "electric-cyan",
   },
   {
     id: "phantom-r",
     name: "Phantom R",
+    tier: "Elite",
     acceleration: 2900,
     maxSpeed: 13000,
     handling: 0.8,
@@ -46,9 +52,12 @@ export const CARS: CarDefinition[] = [
     grip: 0.8,
     nitroCapacity: 140,
     unlockCost: 4000,
+    unlockEvent: "grid-lock",
     defaultPaint: "neon-magenta",
   },
 ];
+
+export const PAINT_COST = 250;
 
 export interface Paint {
   id: string;

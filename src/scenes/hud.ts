@@ -1,21 +1,10 @@
 import * as Phaser from "phaser";
 import { SPEED_TO_KMH } from "../config/game";
+import type { Reward } from "../core/championship";
 import type { Race } from "../core/race";
+import { button, COLORS, text, UI_DEPTH } from "./ui";
 
-const COLORS = {
-  text: "#ffffff",
-  dim: "#b7bcc8",
-  accent: "#ff7a1a",
-  boost: "#19e3ff",
-  good: "#9dff2b",
-  meterFill: 0x19e3ff,
-  meterTrack: 0x000000,
-  panel: 0x0d0e12,
-  button: 0x1d1f24,
-  buttonEdge: 0xff7a1a,
-};
-const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-const DEPTH = 3000;
+const DEPTH = UI_DEPTH;
 const METER = { width: 140, height: 12, bankShowSeconds: 1.2 };
 
 export function formatTime(seconds: number | null) {
@@ -30,18 +19,6 @@ export function gear(speed: number, maxSpeed: number) {
   if (speed < 1) return "N";
   return String(1 + Math.min(5, Math.floor((speed / maxSpeed) * 6)));
 }
-
-const text = (scene: Phaser.Scene, size: number, color = COLORS.text) =>
-  scene.add
-    .text(0, 0, "", {
-      fontFamily: FONT,
-      fontSize: `${size}px`,
-      fontStyle: "bold",
-      color,
-      stroke: "#000000",
-      strokeThickness: 4,
-    })
-    .setDepth(DEPTH);
 
 export class Hud {
   private position: Phaser.GameObjects.Text;
@@ -103,9 +80,9 @@ export class Hud {
       .setText(`${Math.round(Math.abs(p.state.speed) * SPEED_TO_KMH)} km/h`);
     this.gear
       .setPosition(W - 16, H - 16)
-      .setText(`GEAR ${gear(p.state.speed, race.car.maxSpeed)}`);
+      .setText(`GEAR ${gear(p.state.speed, race.player.car.maxSpeed)}`);
 
-    const fill = p.nitro / race.car.nitroCapacity;
+    const fill = p.nitro / race.player.car.nitroCapacity;
     this.nitroTrack.setPosition(16, H - 16);
     this.nitroFill
       .setPosition(16, H - 16)
@@ -136,23 +113,27 @@ export class Hud {
       .setText(race.status === "countdown" ? String(Math.ceil(c)) : "GO!");
   }
 
-  showPause(onResume: () => void, onRestart: () => void) {
+  showPause(onResume: () => void, onRestart: () => void, onQuit: () => void) {
     this.showOverlay(
       "PAUSED",
       [],
       [
         ["Resume", onResume],
         ["Restart", onRestart],
+        ["Quit", onQuit],
       ],
     );
   }
 
-  showResults(race: Race, onRetry: () => void) {
+  showResults(race: Race, reward: Reward, actions: [string, () => void][]) {
     const p = race.player;
     const lines = [
       `Time  ${formatTime(p.finishTime)}`,
-      `Best lap  ${formatTime(race.bestLap(p))}`,
+      `Best lap  ${formatTime(race.bestLap(p))}${reward.newBestLap ? "  NEW RECORD" : ""}`,
       `Drift score  ${p.driftScore}`,
+      `Credits  +${reward.credits}`,
+      `Points  +${reward.points}${reward.pointsGained < reward.points ? ` (${reward.pointsGained} new)` : ""}`,
+      ...reward.unlockedCars.map((id) => `UNLOCKED  ${id.toUpperCase()}`),
       "",
       ...race
         .standings()
@@ -161,9 +142,7 @@ export class Hud {
             `${i + 1}. ${r.isPlayer ? "YOU" : r.name}  ${r.finishTime === null ? "" : formatTime(r.finishTime)}`,
         ),
     ];
-    this.showOverlay(`FINISHED P${race.position(p)}`, lines, [
-      ["Retry", onRetry],
-    ]);
+    this.showOverlay(`FINISHED P${race.position(p)}`, lines, actions);
   }
 
   hideOverlay() {
@@ -186,27 +165,32 @@ export class Hud {
       text(this.scene, 40, COLORS.accent)
         .setText(title)
         .setOrigin(0.5)
-        .setPosition(W / 2, H * 0.22),
+        .setPosition(W / 2, 70),
       text(this.scene, 18)
         .setText(lines.join("\n"))
         .setOrigin(0.5, 0)
         .setAlign("center")
         .setLineSpacing(6)
-        .setPosition(W / 2, H * 0.22 + 44),
+        .setPosition(W / 2, 120),
     ];
+    const { width: bw, height: bh } = {
+      width: Math.min(260, W - 48),
+      height: 52,
+    };
     buttons.forEach(([label, action], i) => {
-      const y = H * 0.72 + i * 72;
-      const bg = this.scene.add
-        .rectangle(W / 2, y, Math.min(260, W - 48), 56, COLORS.button)
-        .setStrokeStyle(2, COLORS.buttonEdge)
-        .setInteractive({ useHandCursor: true })
-        .on("pointerdown", action);
       items.push(
-        bg,
-        text(this.scene, 22)
-          .setText(label)
-          .setOrigin(0.5)
-          .setPosition(W / 2, y),
+        ...button(
+          this.scene,
+          W / 2,
+          H - 40 - (buttons.length - 1 - i) * (bh + 12) - bh / 2,
+          label,
+          action,
+          {
+            width: bw,
+            height: bh,
+            accent: i === 0,
+          },
+        ),
       );
     });
     this.overlay = this.scene.add.container(0, 0, items).setDepth(DEPTH + 10);

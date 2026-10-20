@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
-import { AI_DRIVERS, DIFFICULTIES, type Difficulty } from "../config/ai";
-import { CARS, PAINTS } from "../config/cars";
+import { AI_DRIVERS, DIFFICULTIES } from "../config/ai";
+import { CARS } from "../config/cars";
+import { EVENTS, type EventDefinition } from "../config/championship";
 import {
   CAMERA_DEPTH,
   CAR_WORLD_WIDTH,
@@ -12,7 +13,9 @@ import {
 } from "../config/game";
 import { TRACKS } from "../config/tracks";
 import { driveAI, newAIMemory, type AIMemory } from "../core/ai";
+import { applyRaceResult, isUnlocked } from "../core/championship";
 import { Race, type Racer } from "../core/race";
+import { loadSave, writeSave } from "../core/save";
 import { buildTrack } from "../core/track";
 import { CarEffects } from "../render/effects";
 import { RoadRenderer, type CarSprite } from "../render/road-renderer";
@@ -21,9 +24,7 @@ import { Hud } from "./hud";
 import { InputManager } from "./input-manager";
 
 export interface RaceSceneData {
-  trackId?: string | null;
-  paintId?: string | null;
-  difficulty?: string | null;
+  eventId: string;
 }
 
 const frameFor = (r: Racer, maxSpeed: number): CarFrame =>
@@ -47,7 +48,8 @@ export class RaceScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Image;
   private effects!: CarEffects;
   private memories = new Map<string, AIMemory>();
-  private difficulty: Difficulty = "normal";
+  private event!: EventDefinition;
+  private raceId = "";
   private acc = 0;
   private jolt = { time: 0, amp: 0 };
   private resultsShown = false;
@@ -61,27 +63,34 @@ export class RaceScene extends Phaser.Scene {
     this.acc = 0;
     this.jolt = { time: 0, amp: 0 };
     this.resultsShown = false;
+    this.event = EVENTS.find((e) => e.id === data.eventId) ?? EVENTS[0]!;
+    this.raceId = `${this.event.id}-${Date.now()}`;
+    const save = loadSave();
+    const car = CARS.find((c) => c.id === save.selectedCarId) ?? CARS[0]!;
+    const paintId = save.paints[car.id]?.selected ?? car.defaultPaint;
+    const aiCar = CARS.find((c) => c.id === this.event.aiCarId) ?? CARS[0]!;
     const track = buildTrack(
-      TRACKS.find((t) => t.id === data.trackId) ?? TRACKS[0]!,
+      TRACKS.find((t) => t.id === this.event.trackId) ?? TRACKS[0]!,
+      this.event.reversed,
     );
-    const car = CARS[0]!;
-    const paintId =
-      PAINTS.find((p) => p.id === data.paintId)?.id ?? car.defaultPaint;
-    this.difficulty =
-      data.difficulty && data.difficulty in DIFFICULTIES
-        ? (data.difficulty as Difficulty)
-        : "normal";
 
-    const rivals = AI_DRIVERS.filter((d) => d.paintId !== paintId).slice(0, 5);
-    this.race = new Race(track, car, [
-      ...rivals.map((d) => ({
-        id: d.name,
-        name: d.name,
-        isPlayer: false,
-        paintId: d.paintId,
-      })),
-      { id: "player", name: "You", isPlayer: true, paintId },
-    ]);
+    const rivals = AI_DRIVERS.filter(
+      (d) => !(aiCar.id === car.id && d.paintId === paintId),
+    ).slice(0, 5);
+    this.race = new Race(
+      track,
+      [
+        ...rivals.map((d) => ({
+          id: d.name,
+          name: d.name,
+          isPlayer: false,
+          paintId: d.paintId,
+          car: aiCar,
+        })),
+        { id: "player", name: "You", isPlayer: true, paintId, car },
+      ],
+      this.event.laps,
+    );
     this.memories = new Map(rivals.map((d) => [d.name, newAIMemory()]));
 
     this.road = new RoadRenderer(this, track);
@@ -109,6 +118,7 @@ export class RaceScene extends Phaser.Scene {
         this.race.resume();
       },
       () => this.scene.restart(this.setup),
+      () => this.scene.start("championship"),
     );
   }
 
@@ -122,7 +132,7 @@ export class RaceScene extends Phaser.Scene {
     }
 
     const input = this.controls.read(Math.min(delta / 1000, 0.1));
-    const profile = DIFFICULTIES[this.difficulty];
+    const profile = DIFFICULTIES[this.event.difficulty];
     this.acc += Math.min(delta / 1000, 0.1);
     while (this.acc >= FIXED_STEP) {
       const events = race.step(FIXED_STEP, (r) => {
@@ -133,7 +143,7 @@ export class RaceScene extends Phaser.Scene {
           this.memories.get(r.id)!,
           r.state,
           others,
-          race.car,
+          r.car,
           race.track,
           profile,
           style,
@@ -150,15 +160,19 @@ export class RaceScene extends Phaser.Scene {
     }
 
     const p = race.player;
-    const maxSpeed = race.car.maxSpeed;
+    const maxSpeed = p.car.maxSpeed;
     const L = race.track.length;
     const cars: CarSprite[] = race.racers
       .filter((r) => !r.isPlayer)
       .map((r) => ({
         z: r.state.z,
         x: r.state.x,
-        texture: carTextureKey(race.car.id, r.paintId, frameFor(r, maxSpeed)),
-        sizeTexture: carTextureKey(race.car.id, r.paintId),
+        texture: carTextureKey(
+          r.car.id,
+          r.paintId,
+          frameFor(r, r.car.maxSpeed),
+        ),
+        sizeTexture: carTextureKey(r.car.id, r.paintId),
       }));
     const ratio = Math.abs(p.state.speed) / maxSpeed;
     const paused = race.status === "paused";
@@ -177,9 +191,7 @@ export class RaceScene extends Phaser.Scene {
       (this.jolt.time > 0 ? this.jolt.amp : 0) +
       (offroad && ratio > 0.05 && !paused ? 2 : 0);
     const bounce = Math.sin(p.state.z / 1500) * ratio;
-    const straight = this.textures.getFrame(
-      carTextureKey(race.car.id, p.paintId),
-    );
+    const straight = this.textures.getFrame(carTextureKey(p.car.id, p.paintId));
     const carWidth =
       CAR_WORLD_WIDTH *
       (CAMERA_DEPTH / PLAYER_Z) *
@@ -187,7 +199,7 @@ export class RaceScene extends Phaser.Scene {
       SPRITE_SCALE *
       ROAD_WIDTH;
     this.player
-      .setTexture(carTextureKey(race.car.id, p.paintId, frameFor(p, maxSpeed)))
+      .setTexture(carTextureKey(p.car.id, p.paintId, frameFor(p, maxSpeed)))
       .setScale(carWidth / straight.width)
       .setPosition(
         W / 2 + Phaser.Math.FloatBetween(-shake, shake),
@@ -202,7 +214,36 @@ export class RaceScene extends Phaser.Scene {
     this.hud.update(race);
     if (race.status === "finished" && !this.resultsShown) {
       this.resultsShown = true;
-      this.hud.showResults(race, () => this.scene.restart(this.setup));
+      this.finish();
     }
+  }
+
+  private finish() {
+    const p = this.race.player;
+    const { save, reward } = applyRaceResult(
+      loadSave(),
+      this.raceId,
+      this.event,
+      {
+        position: this.race.position(p),
+        totalTime: p.finishTime!,
+        bestLap: this.race.bestLap(p),
+        driftScore: p.driftScore,
+      },
+    );
+    writeSave(save);
+    const index = EVENTS.indexOf(this.event);
+    const next = EVENTS[index + 1];
+    const actions: [string, () => void][] = [];
+    if (next && isUnlocked(save, index + 1))
+      actions.push([
+        "Next Event",
+        () => this.scene.restart({ eventId: next.id }),
+      ]);
+    actions.push(
+      ["Retry", () => this.scene.restart(this.setup)],
+      ["Championship", () => this.scene.start("championship")],
+    );
+    this.hud.showResults(this.race, reward, actions);
   }
 }

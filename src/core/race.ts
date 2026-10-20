@@ -12,6 +12,7 @@ export interface Racer {
   name: string;
   isPlayer: boolean;
   paintId: string;
+  car: CarDefinition;
   state: VehicleState;
   distance: number;
   lapStart: number;
@@ -34,6 +35,7 @@ export interface RacerEntry {
   name: string;
   isPlayer: boolean;
   paintId: string;
+  car: CarDefinition;
 }
 
 export interface CollisionEvent {
@@ -51,7 +53,6 @@ export class Race {
 
   constructor(
     readonly track: Track,
-    readonly car: CarDefinition,
     entries: RacerEntry[],
     readonly laps = RACE.laps,
   ) {
@@ -148,7 +149,7 @@ export class Race {
       input.nitro = r.boosting;
       if (r.boosting) r.nitro = Math.max(0, r.nitro - NITRO.burnRate * dt);
       const curve = segmentAt(this.track, r.state.z).curve;
-      r.state = stepVehicle(r.state, input, this.car, curve, L, dt);
+      r.state = stepVehicle(r.state, input, r.car, curve, L, dt);
       this.updateDrift(r, curve, dt);
       const lapsBefore = Math.floor(r.distance / L);
       r.distance += r.state.speed * dt;
@@ -182,17 +183,14 @@ export class Race {
         0.5 + r.driftTime / DRIFT.durationRamp,
       );
       const rate =
-        Math.min(1, r.state.speed / this.car.maxSpeed) * control * bonus * dt;
+        Math.min(1, r.state.speed / r.car.maxSpeed) * control * bonus * dt;
       r.driftPending += DRIFT.scoreRate * rate;
       r.driftNitroPending += DRIFT.nitroRate * rate;
     } else if (r.driftTime > 0) {
       if (r.driftTime >= DRIFT.minDuration) {
         const points = Math.round(r.driftPending);
         r.driftScore += points;
-        r.nitro = Math.min(
-          this.car.nitroCapacity,
-          r.nitro + r.driftNitroPending,
-        );
+        r.nitro = Math.min(r.car.nitroCapacity, r.nitro + r.driftNitroPending);
         r.lastDrift = { points, at: this.time };
       }
       this.clearDrift(r);
@@ -233,7 +231,7 @@ export class Race {
             const bounce = (COLLISION.restitution * closing) / 2;
             rear.state.speed = mean - bounce;
             front.state.speed = mean + bounce;
-            hard = closing > COLLISION.hardHitThreshold * this.car.maxSpeed;
+            hard = closing > COLLISION.hardHitThreshold * rear.car.maxSpeed;
             if (hard) rear.wobble = COLLISION.wobbleSeconds;
           }
           rear.state.z = mod(rear.state.z - overlapZ, L);

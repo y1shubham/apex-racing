@@ -15,11 +15,12 @@ const entries = (n: number): RacerEntry[] =>
     name: d.name,
     isPlayer: i === n - 1,
     paintId: d.paintId,
+    car,
   }));
 
 function simulate(trackIndex: number, difficulty: Difficulty, seed = 1) {
   const track = buildTrack(TRACKS[trackIndex]!);
-  const race = new Race(track, car, entries(6));
+  const race = new Race(track, entries(6));
   const mems = new Map(race.racers.map((r) => [r.id, newAIMemory()]));
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   let offroadSteps = 0;
@@ -50,7 +51,7 @@ function simulate(trackIndex: number, difficulty: Difficulty, seed = 1) {
 
 describe("race", () => {
   it("counts down, then races", () => {
-    const race = new Race(buildTrack(TRACKS[0]!), car, entries(2));
+    const race = new Race(buildTrack(TRACKS[0]!), entries(2));
     race.step(1, () => ({ ...IDLE_INPUT, throttle: true, brake: false }));
     expect(race.status).toBe("countdown");
     expect(race.player.state.speed).toBe(0);
@@ -59,7 +60,7 @@ describe("race", () => {
   });
 
   it("starts everyone behind the line on lap 1 and ranks by distance", () => {
-    const race = new Race(buildTrack(TRACKS[0]!), car, entries(6));
+    const race = new Race(buildTrack(TRACKS[0]!), entries(6));
     expect(race.racers.every((r) => r.distance < 0 && race.lap(r) === 1)).toBe(
       true,
     );
@@ -68,7 +69,7 @@ describe("race", () => {
   });
 
   it("pause freezes the race and resume restores it", () => {
-    const race = new Race(buildTrack(TRACKS[0]!), car, entries(2));
+    const race = new Race(buildTrack(TRACKS[0]!), entries(2));
     race.status = "racing";
     race.pause();
     race.step(1, () => ({ ...IDLE_INPUT, throttle: true, brake: false }));
@@ -78,7 +79,7 @@ describe("race", () => {
   });
 
   const twoCars = () => {
-    const race = new Race(buildTrack(TRACKS[0]!), car, entries(2));
+    const race = new Race(buildTrack(TRACKS[0]!), entries(2));
     race.status = "racing";
     return { race, a: race.racers[0]!, b: race.racers[1]! };
   };

@@ -11,11 +11,6 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    const params = new URLSearchParams(location.search);
-    this.scene.start("race", {
-      trackId: params.get("track"),
-      paintId: params.get("color"),
-      difficulty: params.get("difficulty"),
-    });
+    this.scene.start("menu");
   }
 }
