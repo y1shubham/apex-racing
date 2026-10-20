@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { sound } from "../audio/sound";
 import { defaultSave, loadSave, writeSave, type Settings } from "../core/save";
 import {
   backdrop,
@@ -46,6 +47,7 @@ export class SettingsScene extends Phaser.Scene {
           Math.round(Math.min(1, Math.max(0, save.settings[key] + d)) * 10) /
           10;
         writeSave(save);
+        sound.setVolumes(save.settings.music, save.settings.sfx);
         this.scene.restart();
       };
       text(this, 16).setText(name).setOrigin(0, 0.5).setPosition(left, y);

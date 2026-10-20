@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { sound } from "../audio/sound";
 
 export const COLORS = {
   text: "#ffffff",
@@ -127,6 +128,7 @@ export function button(
       .on("pointerup", () => {
         if (!pressed) return;
         pressed = false;
+        sound.click();
         scene.tweens.add({
           targets: [g, caption],
           scale: 1,
@@ -241,6 +243,7 @@ export function panel(
       .on("pointerup", () => {
         if (!pressed) return;
         pressed = false;
+        sound.click();
         scene.tweens.add({
           targets: g,
           scale: 1,

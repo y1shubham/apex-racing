@@ -17,6 +17,7 @@ import { applyRaceResult, isUnlocked } from "../core/championship";
 import { Race, type Racer } from "../core/race";
 import { loadSave, writeSave } from "../core/save";
 import { buildTrack } from "../core/track";
+import { sound } from "../audio/sound";
 import { CarEffects } from "../render/effects";
 import { RoadRenderer, type CarSprite } from "../render/road-renderer";
 import { carTextureKey, type CarFrame } from "../render/textures";
@@ -52,6 +53,8 @@ export class RaceScene extends Phaser.Scene {
   private event!: EventDefinition;
   private raceId = "";
   private acc = 0;
+  private lastCount = 0;
+  private wasBoosting = false;
   private viewInset = 0;
   private jolt = { time: 0, amp: 0 };
   private resultsShown = false;
@@ -109,9 +112,12 @@ export class RaceScene extends Phaser.Scene {
     this.hud = new Hud(this, () => this.pause(), touch ? TOUCH_INSET : 0);
 
     this.game.events.on(Phaser.Core.Events.BLUR, this.pause, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
-      this.game.events.off(Phaser.Core.Events.BLUR, this.pause, this),
-    );
+    this.lastCount = 0;
+    this.wasBoosting = false;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.BLUR, this.pause, this);
+      sound.stopRace();
+    });
   }
 
   private pause() {
@@ -161,6 +167,7 @@ export class RaceScene extends Phaser.Scene {
       if (mine.length) {
         const hard = mine.some((e) => e.hard);
         this.jolt = { time: hard ? 0.3 : 0.12, amp: hard ? 8 : 3 };
+        sound.hit(hard);
       }
       this.acc -= FIXED_STEP;
     }
@@ -221,6 +228,7 @@ export class RaceScene extends Phaser.Scene {
       !paused && p.state.drift !== 0,
       !paused && p.boosting,
     );
+    this.updateSound(input.throttle);
     this.hud.update(race);
     if (race.status === "finished" && !this.resultsShown) {
       this.resultsShown = true;
@@ -228,8 +236,37 @@ export class RaceScene extends Phaser.Scene {
     }
   }
 
+  private updateSound(throttle: boolean) {
+    const race = this.race;
+    const p = race.player;
+    const count =
+      race.status === "countdown"
+        ? Math.ceil(race.countdown)
+        : race.status === "racing"
+          ? 0
+          : this.lastCount;
+    if (count !== this.lastCount) sound.beep(count === 0);
+    this.lastCount = count;
+    if (race.status !== "racing" && race.status !== "countdown") {
+      sound.silenceRace();
+      this.wasBoosting = false;
+      return;
+    }
+    sound.setEngine(
+      Math.abs(p.state.speed) / p.car.maxSpeed,
+      throttle,
+      p.boosting,
+    );
+    sound.setLoop("drift", p.state.drift !== 0);
+    sound.setLoop("boost", p.boosting);
+    if (p.boosting && !this.wasBoosting) sound.nitroStart();
+    this.wasBoosting = p.boosting;
+  }
+
   private finish() {
     const p = this.race.player;
+    sound.silenceRace();
+    sound.finish(this.race.position(p) === 1);
     const { save, reward } = applyRaceResult(
       loadSave(),
       this.raceId,

@@ -1,4 +1,6 @@
 import * as Phaser from "phaser";
+import { sound } from "./audio/sound";
+import { loadSave } from "./core/save";
 import { BootScene } from "./scenes/boot-scene";
 import { ChampionshipScene } from "./scenes/championship-scene";
 import { GarageScene } from "./scenes/garage-scene";
@@ -15,6 +17,12 @@ await Promise.race([
   fontsReady.catch(() => undefined),
   new Promise((resolve) => setTimeout(resolve, 3000)),
 ]);
+
+const { settings } = loadSave();
+sound.setVolumes(settings.music, settings.sfx);
+const unlockAudio = () => sound.unlock();
+window.addEventListener("pointerdown", unlockAudio, { once: true });
+window.addEventListener("keydown", unlockAudio, { once: true });
 
 new Phaser.Game({
   type: Phaser.AUTO,
